@@ -1,0 +1,37 @@
+════════════════════════════════════════════════════════════════
+SEEDED FAULT: hapus mapping expected_level → required_level (P0-1)
+════════════════════════════════════════════════════════════════
+   × Fit/Gap comparison table — the decision surface > states the level the role requires, even when the API still calls it expected_level 8ms
+   × contract boundary > maps the API's expected_level onto the name the UI reads 7ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  2 failed (2)
+      Tests  2 failed | 15 passed (17)
+
+════════════════════════════════════════════════════════════════
+SEEDED FAULT: kembalikan fallback parseLevel ke L1 (P2-1)
+════════════════════════════════════════════════════════════════
+   × parseLevel — absent data must not become a rating > returns null rather than L1 when the level is missing 6ms
+   × parseLevel — absent data must not become a rating > formats an unknown level as an em dash, never as a level 2ms
+   × LevelBadge — an unrated skill is labelled, not blank and not L1 > labels a missing rating accessibly 37ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed (1)
+      Tests  3 failed | 9 passed (12)
+
+════════════════════════════════════════════════════════════════
+SEEDED FAULT: petakan confidence tak dikenal ke LOW (P2-4)
+════════════════════════════════════════════════════════════════
+   × Fit/Gap comparison table — the decision surface > reports missing confidence as unmeasured, not as low 11ms
+   × ConfidenceIndicator — absence is not the same as low confidence > reports an unrecognised value as unmeasured rather than guessing 9ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  2 failed (2)
+      Tests  2 failed | 20 passed (22)
+
+════════════════════════════════════════════════════════════════
+SETELAH SELURUH FAULT DI-REVERT
+════════════════════════════════════════════════════════════════
+ ✓ src/components/fitgap/ComparisonTable.contract.test.tsx (10 tests) 274ms
+ ✓ src/services/schemas.test.ts (7 tests) 11ms
+ ✓ src/utils/levelSemantics.test.tsx (12 tests) 62ms
+ ✓ src/hooks/usePolling.test.ts (5 tests) 31ms
+ Test Files  4 passed (4)
+      Tests  34 passed (34)
