@@ -1,58 +1,110 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import SkillPortfolioCard from "@/components/portfolio/SkillPortfolioCard";
+import DataIntegrityNotice from "@/components/DataIntegrityNotice";
 import { sessionsApi } from "@/services/sessions";
 import { vacanciesApi } from "@/services/vacancies";
-import { portfoliosApi } from "@/services/portfolios";
+import { portfoliosApi, readErrorMessage } from "@/services/portfolios";
 import { usePolling } from "@/hooks/usePolling";
-import { ArrowLeft, Download, Loader2, RefreshCw, Zap, FileText } from "lucide-react";
-import type { Portfolio, AssessorOverride, Vacancy } from "@/types";
+import { ArrowLeft, Download, Loader2, RefreshCw, Zap, FileText, AlertTriangle } from "lucide-react";
+import type { Portfolio, AssessorOverride } from "@/services/schemas";
+import type { Vacancy } from "@/types";
+
+/** Generation is normally ~2 minutes. Past this we stop claiming it is on its way. */
+const GENERATION_TIMEOUT_MS = 5 * 60 * 1000;
 
 export default function PortfolioPage() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>();
   const navigate = useNavigate();
+
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [overrides, setOverrides] = useState<Record<number, AssessorOverride>>({});
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [selectedVacancy, setSelectedVacancy] = useState<string>("");
   const [exporting, setExporting] = useState<"pdf" | "json" | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [candidateName, setCandidateName] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   const fetchPortfolio = useCallback(async () => {
-    const res = await sessionsApi.getPortfolio(Number(sessionId));
-    const data = res.data as any;
-    if (data.status === "generating" || data.portfolio?.generation_status === "generating" || data.portfolio?.generation_status === "pending") {
+    const result = await sessionsApi.fetchPortfolio(Number(sessionId));
+
+    if (result.state === "generating") {
       setGenerating(true);
-    } else if (data.portfolio) {
-      setPortfolio(data.portfolio);
-      setGenerating(false);
-      // Build overrides map
-      const overrideMap: Record<number, AssessorOverride> = {};
-      data.portfolio.overrides.forEach((o: AssessorOverride) => {
-        overrideMap[o.portfolio_skill_id] = o;
-      });
-      setOverrides(overrideMap);
+      return;
     }
+
+    const p = result.portfolio;
+    setPortfolio(p);
+    // `pending` and `generating` are both "still working" — the old page treated
+    // them the same but the API only reported one of them as such, so a portfolio
+    // parked in `pending` polled forever with no way out.
+    setGenerating(p.generation_status === "pending" || p.generation_status === "generating");
+
+    const map: Record<number, AssessorOverride> = {};
+    p.overrides.forEach((o) => {
+      map[o.portfolio_skill_id] = o;
+    });
+    setOverrides(map);
   }, [sessionId]);
 
-  useEffect(() => {
-    Promise.all([fetchPortfolio(), vacanciesApi.list(), sessionsApi.get(Number(sessionId))])
-      .then(([, vRes, sRes]) => {
-        setVacancies(vRes.data.vacancies);
-        setCandidateName(sRes.data.session.candidate_name ?? null);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [, vRes, sRes] = await Promise.all([
+        fetchPortfolio(),
+        vacanciesApi.list(),
+        sessionsApi.get(Number(sessionId)),
+      ]);
+      setVacancies(vRes.data.vacancies);
+      setCandidateName(sRes.data.session.candidate_name ?? null);
+    } catch (error) {
+      // Previously `.catch(() => {})`. A 500 produced a page with a heading and
+      // nothing else, and no way to tell that anything had gone wrong.
+      setLoadError(error);
+    } finally {
+      setLoading(false);
+    }
   }, [fetchPortfolio, sessionId]);
 
-  // Poll while generating
-  usePolling(fetchPortfolio, 5000, generating);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const { timedOut } = usePolling(fetchPortfolio, 5000, generating, {
+    timeoutMs: GENERATION_TIMEOUT_MS,
+  });
+
+  const stalled = timedOut || portfolio?.stalled === true;
+
+  const handleRetryGeneration = async () => {
+    setRetrying(true);
+    setLoadError(null);
+    try {
+      await sessionsApi.regeneratePortfolio(Number(sessionId));
+      setPortfolio(null);
+      setGenerating(true);
+      await fetchPortfolio();
+    } catch (error) {
+      setLoadError(new Error(await readErrorMessage(error, "Gagal menjalankan ulang generasi.")));
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const handleOverrideSaved = (skillId: number, override: AssessorOverride) => {
     setOverrides((prev) => ({ ...prev, [skillId]: override }));
@@ -66,29 +118,18 @@ export default function PortfolioPage() {
   const handleExport = async (format: "pdf" | "json") => {
     if (!portfolio) return;
     setExporting(format);
+    setExportError(null);
     try {
-      const res = await portfoliosApi.exportPortfolio(
+      await portfoliosApi.downloadExport(
         portfolio.id,
         format,
+        `portfolio-${sessionId}.${format}`,
         selectedVacancy ? Number(selectedVacancy) : undefined
       );
-      if (format === "json") {
-        const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `portfolio-${sessionId}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        const blob = new Blob([res.data as BlobPart], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `portfolio-${sessionId}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
+    } catch (error: any) {
+      // The old handler had no catch at all: a rejected export just stopped the
+      // spinner, and the assessor was left staring at an unchanged screen.
+      setExportError(error?.message ?? "Ekspor gagal.");
     } finally {
       setExporting(null);
     }
@@ -96,7 +137,7 @@ export default function PortfolioPage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto space-y-4">
+      <div className="mx-auto max-w-3xl space-y-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-48 w-full" />
         <Skeleton className="h-48 w-full" />
@@ -104,48 +145,51 @@ export default function PortfolioPage() {
     );
   }
 
+  const ready = !generating && portfolio?.generation_status === "complete";
+  const configured = portfolio?.skills.filter((s) => !s.is_discovered) ?? [];
+  const discovered = portfolio?.skills.filter((s) => s.is_discovered) ?? [];
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
+    <div className="mx-auto max-w-3xl space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-2">
-          <Link to={`/assessments/${id}/invite`} className="text-muted-foreground hover:text-foreground">
+          <Link
+            to={`/assessments/${id}/invite`}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Kembali"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
-            <h1 className="text-lg font-semibold">Portfolio Results</h1>
-            {candidateName && (
-              <p className="text-sm text-muted-foreground">{candidateName}</p>
-            )}
+            <h1 className="text-lg font-semibold">Hasil Portfolio</h1>
+            {candidateName && <p className="text-sm text-muted-foreground">{candidateName}</p>}
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
             to={`/assessments/${id}/sessions/${sessionId}/transcript`}
-            className="inline-flex items-center gap-1 text-sm border rounded-md px-3 py-1.5 hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
           >
-            <FileText className="h-3.5 w-3.5" />
-            Transcript
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+            Transkrip
           </Link>
-          {!generating && portfolio && (
+          {ready && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleExport("pdf")}
-                disabled={!!exporting}
-              >
-                {exporting === "pdf" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
+              <Button variant="outline" size="sm" onClick={() => handleExport("pdf")} disabled={!!exporting}>
+                {exporting === "pdf" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                )}
                 PDF
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleExport("json")}
-                disabled={!!exporting}
-              >
-                {exporting === "json" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
+              <Button variant="outline" size="sm" onClick={() => handleExport("json")} disabled={!!exporting}>
+                {exporting === "json" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                )}
                 JSON
               </Button>
             </>
@@ -153,89 +197,118 @@ export default function PortfolioPage() {
         </div>
       </div>
 
-      {/* Generating state */}
-      {generating && (
-        <div className="border rounded-lg p-12 text-center space-y-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+      {loadError != null && (
+        <DataIntegrityNotice error={loadError} subject="portfolio" onRetry={() => void load()} />
+      )}
+
+      {exportError && (
+        <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          {exportError}
+        </div>
+      )}
+
+      {generating && !stalled && (
+        <div className="space-y-3 rounded-lg border p-12 text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" aria-hidden="true" />
           <div>
-            <p className="font-medium">Generating portfolio...</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              The AI is analyzing the interview transcript. This takes about 2 minutes.
+            <p className="font-medium">Menyusun portfolio…</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              AI sedang menganalisis transkrip wawancara. Biasanya sekitar 2 menit.
             </p>
           </div>
         </div>
       )}
 
-      {/* Failed state */}
-      {!generating && portfolio?.generation_status === "failed" && (
-        <div className="border border-destructive/40 rounded-lg p-6 text-center space-y-3">
-          <p className="text-sm text-destructive">Portfolio generation failed.</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              await sessionsApi.regeneratePortfolio(Number(sessionId));
-              setGenerating(true);
-            }}
-          >
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+      {generating && stalled && (
+        <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-6 text-center">
+          <AlertTriangle className="mx-auto h-6 w-6 text-amber-700" aria-hidden="true" />
+          <div>
+            <p className="font-medium text-amber-900">Generasi tampaknya tertahan</p>
+            <p className="mt-1 text-sm text-amber-900/80">
+              Sudah lebih lama dari yang wajar dan belum selesai. Biasanya ini berarti worker
+              latar belakang tidak mengambil pekerjaannya.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleRetryGeneration} disabled={retrying}>
+            {retrying ? (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            Jalankan ulang
           </Button>
         </div>
       )}
 
-      {/* Ready state */}
-      {!generating && portfolio?.generation_status === "complete" && (
+      {!generating && portfolio?.generation_status === "failed" && (
+        <div className="space-y-3 rounded-lg border border-destructive/40 p-6 text-center">
+          <p className="text-sm text-destructive">
+            {portfolio.generation_error || "Penyusunan portfolio gagal."}
+          </p>
+          <Button variant="outline" size="sm" onClick={handleRetryGeneration} disabled={retrying}>
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Coba lagi
+          </Button>
+        </div>
+      )}
+
+      {ready && configured.length === 0 && discovered.length === 0 && (
+        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+          Portfolio selesai dibuat, tapi tidak ada satu pun skill yang berhasil dinilai dari
+          wawancara ini. Periksa transkripnya — kemungkinan sesi berakhir terlalu awal.
+        </div>
+      )}
+
+      {ready && (configured.length > 0 || discovered.length > 0) && (
         <>
-          {/* Configured skills */}
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold">Configured Skills</h2>
-            {portfolio.skills
-              .filter((s) => !s.is_discovered)
-              .map((skill) => (
+          {configured.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold">Skill yang dikonfigurasi</h2>
+              {configured.map((skill) => (
                 <SkillPortfolioCard
                   key={skill.id}
                   skill={skill}
                   override={overrides[skill.id]}
                   onOverrideSaved={(o) => handleOverrideSaved(skill.id, o)}
+                  assessmentId={id}
+                  sessionId={sessionId}
                 />
               ))}
-          </div>
+            </div>
+          )}
 
-          {/* Discovered skills */}
-          {portfolio.skills.some((s) => s.is_discovered) && (
+          {discovered.length > 0 && (
             <>
               <Separator />
               <div className="space-y-3">
                 <div>
-                  <h2 className="text-sm font-semibold flex items-center gap-1.5">
-                    <Zap className="h-4 w-4 text-amber-500" />
-                    Discovered Skills
+                  <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+                    <Zap className="h-4 w-4 text-amber-500" aria-hidden="true" />
+                    Skill yang ditemukan AI
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    Skills the AI probed that were not in the original assessment
+                    Skill yang diprobe AI tapi tidak ada dalam konfigurasi assessment
                   </p>
                 </div>
-                {portfolio.skills
-                  .filter((s) => s.is_discovered)
-                  .map((skill) => (
-                    <SkillPortfolioCard
-                      key={skill.id}
-                      skill={skill}
-                      override={overrides[skill.id]}
-                      onOverrideSaved={(o) => handleOverrideSaved(skill.id, o)}
-                    />
-                  ))}
+                {discovered.map((skill) => (
+                  <SkillPortfolioCard
+                    key={skill.id}
+                    skill={skill}
+                    override={overrides[skill.id]}
+                    onOverrideSaved={(o) => handleOverrideSaved(skill.id, o)}
+                    assessmentId={id}
+                    sessionId={sessionId}
+                  />
+                ))}
               </div>
             </>
           )}
 
           <Separator />
 
-          {/* Fit/Gap */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Select value={selectedVacancy} onValueChange={setSelectedVacancy}>
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder="Choose vacancy..." />
+              <SelectTrigger className="w-full sm:w-56">
+                <SelectValue placeholder="Pilih lowongan…" />
               </SelectTrigger>
               <SelectContent>
                 {vacancies.map((v) => (
@@ -246,7 +319,7 @@ export default function PortfolioPage() {
               </SelectContent>
             </Select>
             <Button onClick={handleRunFitGap} disabled={!selectedVacancy}>
-              Run Fit/Gap Analysis →
+              Jalankan analisis Fit/Gap
             </Button>
           </div>
         </>
