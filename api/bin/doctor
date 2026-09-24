@@ -28,6 +28,10 @@ rescue StandardError => e
 else
   mark = ok == :warn ? WARN : (ok ? PASS : FAIL)
   puts format('  %s %-34s %s', mark, label, detail.to_s)
+  # Peringatan tidak masuk daftar "yang perlu dibereskan" dan tidak mengubah
+  # exit code — tapi kalau ada cara memperbaikinya, cara itu tetap dicetak.
+  # Peringatan tanpa langkah berikutnya cuma bikin orang berhenti membacanya.
+  puts format("    %s\e[2m→ %s\e[0m", ' ' * 34, fix) if ok == :warn && fix
   @problems << [label, fix] if ok == false && fix
 end
 
@@ -79,11 +83,31 @@ end
 check('ENV GEMINI_API_KEY') do
   value = ENV['GEMINI_API_KEY'].to_s.empty? ? env['GEMINI_API_KEY'].to_s : ENV['GEMINI_API_KEY'].to_s
   filled = !value.empty? && !value.start_with?('your_')
+
+  # Bentuk key diperiksa, isinya tidak pernah dicetak.
+  #
+  # Yang dicari terutama tanda "..." di tengah: daftar key di AI Studio
+  # menampilkan versi tersamarkan (AIzaSy...4f2a), dan menyorot teks itu
+  # menyalin samarannya, bukan key-nya. Hasilnya ditolak Google dengan
+  # "API key not valid" — pesan yang terdengar seperti key-nya salah, padahal
+  # key aslinya baik-baik saja dan tidak pernah ikut tersalin.
+  problem =
+    if !filled                     then nil
+    elsif value.include?('...')    then 'berisi "..." — ini key tersamarkan dari daftar, bukan key asli'
+    elsif value.match?(/\s/)       then 'ada spasi/baris baru di dalamnya'
+    elsif !value.start_with?('AIza') then 'tidak diawali "AIza"'
+    elsif value.length < 30        then "panjang #{value.length} karakter, biasanya sekitar 39 — tersalin sebagian"
+    end
+
   # Server tetap boot tanpa kunci ini, jadi bukan blokir — tapi wawancara,
   # portfolio, dan fit/gap akan gagal saat dipakai. Dibedakan dari yang fatal.
-  [filled ? true : :warn,
-   filled ? 'terisi' : 'kosong — login & dashboard jalan, fitur AI tidak',
-   nil]
+  if problem
+    [:warn, problem, 'salin ulang dengan tombol copy, lalu: bin/setup-gemini']
+  else
+    [filled ? true : :warn,
+     filled ? "terisi (#{value.length} karakter)" : 'kosong — login & dashboard jalan, fitur AI tidak',
+     filled ? nil : 'bin/setup-gemini']
+  end
 end
 
 pg_host = env.fetch('DB_HOST', 'localhost')

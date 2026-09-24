@@ -1,0 +1,267 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Memasang GEMINI_API_KEY ke config/application.yml dan memilih nama model dari
+# daftar yang benar-benar tersedia untuk key itu.
+#
+# Ada dua hal yang dikerjakan di sini, dan keduanya gagal dengan cara yang tidak
+# kelihatan kalau dikerjakan manual:
+#
+#   1. Key diketik, bukan ditempel ke chat atau ke riwayat shell. Key yang
+#      pernah masuk ke `history` atau ke sebuah percakapan harus dianggap bocor.
+#   2. Nama model diambil dari API, bukan dari dokumentasi atau ingatan. Model
+#      yang salah tidak menggagalkan boot — Rails menyala normal dan baru gagal
+#      saat interview dimulai, di depan kandidat.
+#
+#   bin/setup-gemini
+
+require 'io/console'
+require 'json'
+require 'net/http'
+require 'uri'
+
+CONFIG = File.expand_path('../config/application.yml', __dir__)
+
+def die(msg)
+  warn "\n  \e[31m✗\e[0m #{msg}\n\n"
+  exit 1
+end
+
+def say(msg)  = puts("  #{msg}")
+def ok(msg)   = puts("  \e[32m✓\e[0m #{msg}")
+def warn_(msg) = puts("  \e[33m!\e[0m #{msg}")
+
+puts "\n\e[1mSetup Gemini\e[0m\n\n"
+
+unless File.exist?(CONFIG)
+  sample = "#{CONFIG}.sample"
+  die "config/application.yml tidak ada. Jalankan dulu: cp #{sample} #{CONFIG}" unless File.exist?(sample)
+  die "config/application.yml tidak ada. Salin dari application.yml.sample dulu."
+end
+
+# ── 1. Key ──────────────────────────────────────────────────────────────────
+say 'Ambil key di https://aistudio.google.com/apikey'
+say '(Get API key → Create API key → pilih atau buat project)'
+puts
+
+print '  Tempel API key (tidak akan tampil di layar): '
+key = $stdin.noecho(&:gets).to_s.strip
+puts
+
+die 'Kosong.' if key.empty?
+
+# Penyebab penolakan yang paling membingungkan, karena key-nya terlihat benar:
+# spasi atau baris baru yang ikut tersalin. Di terminal keduanya tidak kelihatan.
+if key.match?(/\s/)
+  warn_ 'Ada spasi/baris baru di dalam key — dibuang.'
+  key = key.gsub(/\s+/, '')
+end
+
+warn_ 'Key Google biasanya diawali "AIza".' unless key.start_with?('AIza')
+warn_ "Panjang key #{key.length} karakter, biasanya sekitar 39. Mungkin tersalin sebagian." if key.length < 30
+
+# ── 2. Tanya API-nya model apa yang tersedia ────────────────────────────────
+#
+# Ditanyakan ke tiga versi API, bukan satu, karena kode ini memakai dua versi
+# yang berbeda dan daftar modelnya tidak sama:
+#
+#   Gemini::HttpClient  -> /v1        (flash & pro)
+#   Gemini::LiveClient  -> v1beta ws  (live)
+#
+# Model Live sering tidak muncul di /v1 sama sekali. Menanyakan satu versi saja
+# lalu menyimpulkan "key ini tidak punya model Live" adalah kesimpulan yang
+# salah — dan kesimpulan salah yang menghentikan orang mencoba lebih buruk
+# daripada tidak memeriksa sama sekali.
+VERSIONS = %w[v1 v1beta v1alpha].freeze
+
+def fetch_models(version, key)
+  uri = URI("https://generativelanguage.googleapis.com/#{version}/models" \
+            "?key=#{URI.encode_www_form_component(key)}&pageSize=200")
+  response = Net::HTTP.get_response(uri)
+  return [nil, response] unless response.is_a?(Net::HTTPSuccess)
+
+  models = JSON.parse(response.body).fetch('models', []).map do |m|
+    {
+      name:    m['name'].to_s.sub(%r{\Amodels/}, ''),
+      methods: Array(m['supportedGenerationMethods'])
+    }
+  end
+  [models, response]
+end
+
+puts
+say 'Menanyakan model yang tersedia untuk key ini...'
+
+by_version = {}
+first_failure = nil
+
+VERSIONS.each do |version|
+  models, response =
+    begin
+      fetch_models(version, key)
+    rescue StandardError => e
+      die "Tidak bisa menghubungi Google: #{e.class}: #{e.message}" if version == VERSIONS.first
+
+      next
+    end
+
+  if models.nil?
+    first_failure ||= response
+    next
+  end
+
+  by_version[version] = models
+end
+
+if by_version.empty?
+  response = first_failure
+  body    = (JSON.parse(response.body) rescue {})
+  detail  = body.dig('error', 'message') || response.body.to_s[0, 200]
+  details = Array(body.dig('error', 'details'))
+  reason  = details.filter_map { |d| d['reason'] }.first
+  info    = details.find { |d| d['metadata'].is_a?(Hash) }&.fetch('metadata', {}) || {}
+
+  puts
+  warn "\n  \e[31m✗\e[0m Google menolak key ini (HTTP #{response.code})."
+  warn "    #{detail}\n"
+
+  # Tiap penyebab punya perbaikan yang berbeda, dan pesan bawaan Google tidak
+  # membedakannya. Menebak yang salah berarti mengulang langkah yang sama.
+  case reason
+  when 'SERVICE_DISABLED', 'SERVICE_API_KEY_DISABLED'
+    warn '  Generative Language API belum aktif di project ini.'
+    url = info['activationUrl'] || info['consumer']&.then { |c|
+      "https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=#{c.split('/').last}"
+    }
+    warn "  Aktifkan di:\n    #{url}\n" if url
+    warn '  Atau lebih cepat: buat key baru di project bawaan AI Studio'
+    warn "  (\"Default Gemini Project\"), yang API-nya sudah aktif.\n"
+  when 'API_KEY_INVALID'
+    warn '  Kemungkinannya, berurutan dari yang paling sering:'
+    warn '    1. Key tersalin sebagian — daftar key di AI Studio menampilkan'
+    warn '       versi tersamarkan; pakai tombol copy, jangan sorot teksnya'
+    warn '    2. Key dibatasi ke API tertentu di Cloud Console, dan'
+    warn '       "Generative Language API" tidak termasuk'
+    warn '    3. Key dibatasi ke HTTP referrer atau IP — pembatasan itu untuk'
+    warn '       key yang dipakai dari browser, dan selalu menolak panggilan'
+    warn "       dari server seperti ini\n"
+    warn "  Cek pembatasannya di https://console.cloud.google.com/apis/credentials\n"
+  when 'API_KEY_HTTP_REFERRER_BLOCKED', 'API_KEY_IP_ADDRESS_BLOCKED'
+    warn '  Key ini dibatasi ke referrer/IP tertentu. Rails memanggil dari server,'
+    warn '  bukan dari browser, jadi pembatasan itu selalu menolaknya.'
+    warn '  Ubah Application restrictions jadi "None" di:'
+    warn "    https://console.cloud.google.com/apis/credentials\n"
+  when 'RATE_LIMIT_EXCEEDED', 'RESOURCE_EXHAUSTED'
+    warn "  Kuota habis, bukan key-nya salah. Tunggu, atau cek tier di AI Studio.\n"
+  else
+    warn '  Kalau key baru saja dibuat, tunggu sekitar satu menit lalu coba lagi —'
+    warn "  key butuh waktu sebentar untuk menyebar.\n"
+  end
+
+  exit 1
+end
+
+by_version.each { |v, m| ok "#{v}: #{m.size} model" }
+
+# Model untuk HttpClient harus ada di /v1 — itu versi yang benar-benar
+# dipanggilnya. Model yang cuma ada di v1beta akan 404 di sana.
+text = (by_version['v1'] || []).select { |m| m[:methods].include?('generateContent') }
+if text.empty?
+  warn_ 'Tidak ada model generateContent di /v1 — memakai daftar v1beta sebagai gantinya.'
+  warn_ 'Kalau nanti panggilan teks gagal 404, ubah BASE_URL di app/clients/gemini/http_client.rb ke /v1beta.'
+  text = (by_version['v1beta'] || []).select { |m| m[:methods].include?('generateContent') }
+end
+
+# `bidiGenerateContent` adalah metode WebSocket dua arah — itulah yang dipakai
+# AudioWebSocketMiddleware.
+live_versions = %w[v1beta v1alpha v1]
+live = live_versions.flat_map { |v| by_version[v] || [] }
+                    .select { |m| m[:methods].include?('bidiGenerateContent') }
+                    .uniq { |m| m[:name] }
+
+# Kalau tidak ada yang mengiklankan bidiGenerateContent, itu belum tentu berarti
+# key-nya tidak punya akses: ListModels tidak selalu melaporkan kemampuan Live.
+# Jadi dicari lewat nama, lalu dilaporkan sebagai dugaan — bukan sebagai fakta,
+# dan bukan sebagai alasan berhenti.
+guessed = false
+if live.empty?
+  live = by_version.values.flatten
+                   .select { |m| m[:name].match?(/live|native-audio/i) }
+                   .uniq { |m| m[:name] }
+  guessed = true unless live.empty?
+end
+
+if live.empty?
+  puts
+  warn_ 'Tidak ada model Live yang terdeteksi untuk key ini.'
+  warn_ 'Interview mungkin tidak jalan — tapi ini bisa juga sekadar ListModels'
+  warn_ 'yang tidak melaporkannya. Model teks tetap akan diisi.'
+  warn_ 'Cek akses Live API untuk tier key-mu di https://aistudio.google.com'
+end
+
+def version_rank(name)
+  name.scan(/\d+/).map(&:to_i)
+end
+
+newest = ->(list) { list.max_by { |m| [version_rank(m[:name]), -m[:name].length] } }
+
+die 'Tidak ada satu pun model teks (generateContent) untuk key ini.' if text.empty?
+
+pick_live  = newest.call(live.reject { |m| m[:name].include?('legacy') }) || newest.call(live)
+flash_pool = text.select { |m| m[:name].include?('flash') }
+pro_pool   = text.select { |m| m[:name].include?('pro') }
+pick_flash = newest.call(flash_pool.empty? ? text : flash_pool)
+pick_pro   = newest.call(pro_pool.empty? ? (flash_pool.empty? ? text : flash_pool) : pro_pool)
+
+if live.any?
+  puts
+  say "\e[1mModel Live#{guessed ? ' (dikenali dari nama, bukan dari kemampuan yang diiklankan)' : ''}:\e[0m"
+  live.sort_by { |m| m[:name] }.each { |m| say "    #{m[:name]}" }
+end
+
+puts
+say "\e[1mUsulan:\e[0m"
+say "    GEMINI_LIVE_MODEL  = #{pick_live ? pick_live[:name] : '(tidak ada — isi manual)'}"
+say "    GEMINI_FLASH_MODEL = #{pick_flash[:name]}"
+say "    GEMINI_PRO_MODEL   = #{pick_pro[:name]}"
+puts
+
+print '  Tulis ke config/application.yml? [Y/n] '
+answer = $stdin.gets.to_s.strip.downcase
+die 'Dibatalkan. Tidak ada yang diubah.' unless answer.empty? || answer.start_with?('y')
+
+# ── 3. Tulis, baris per baris ───────────────────────────────────────────────
+# Diedit per baris, bukan lewat YAML.dump: application.yml penuh komentar yang
+# menjelaskan kenapa sebuah nilai seperti itu, dan round-trip YAML membuangnya.
+values = {
+  'GEMINI_API_KEY'     => key,
+  'GEMINI_FLASH_MODEL' => pick_flash[:name],
+  'GEMINI_PRO_MODEL'   => pick_pro[:name]
+}
+values['GEMINI_LIVE_MODEL'] = pick_live[:name] if pick_live
+
+lines   = File.readlines(CONFIG)
+written = {}
+
+lines.map! do |line|
+  key_name = line[/\A([A-Z_]+):/, 1]
+  next line unless key_name && values.key?(key_name)
+
+  written[key_name] = true
+  %(#{key_name}: "#{values[key_name]}"\n)
+end
+
+missing = values.keys - written.keys
+lines << "\n" unless missing.empty? || lines.last.to_s.end_with?("\n")
+missing.each { |k| lines << %(#{k}: "#{values[k]}"\n) }
+
+File.write(CONFIG, lines.join)
+
+puts
+ok "config/application.yml diperbarui#{missing.empty? ? '' : " (#{missing.join(', ')} ditambahkan)"}."
+warn_ 'Figaro membaca berkas ini saat boot — restart Rails supaya nilainya terpakai.'
+puts
+say 'Selanjutnya:'
+say '    bin/doctor'
+say '    bundle exec rails server -p 3001'
+puts
