@@ -202,7 +202,6 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
 
     return (
         <div className="rounded-lg border bg-card overflow-hidden">
-            {/* Camera preview */}
             {REQUIRE_CAMERA && <div className="relative bg-black aspect-video">
                 {videoStream ? (
                     <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
@@ -222,7 +221,6 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
                 )}
             </div>}
 
-            {/* Checklist */}
             <div className="divide-y">
                 {rows.map(({ key, label }) => (
                     <div key={key} className="px-4 py-3">
@@ -239,7 +237,6 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
                             </div>
                         </div>
 
-                        {/* Internet speed details */}
                         {key === "internet" && internetResult && (
                             <div className="mt-2 flex gap-3 text-xs">
                                 <span className={internetResult.download >= thresholds.minDownloadMbps ? "text-green-600" : "text-destructive"}>
@@ -254,7 +251,6 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
                             </div>
                         )}
 
-                        {/* Mic level bar */}
                         {key === "microphone" && progress.microphone === ProctoringState.PASSED && (
                             <div className="mt-2 flex items-center gap-2">
                                 <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
@@ -270,7 +266,6 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
                 ))}
             </div>
 
-            {/* Footer */}
             <div className="px-4 py-3 border-t flex items-center justify-between gap-3 bg-muted/30">
                 {hasError && (
                     <Button variant="outline" size="sm" onClick={retryAll}>

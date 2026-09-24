@@ -2,14 +2,6 @@
 
 require 'rails_helper'
 
-# Interview transcripts are personal data under UU PDP. These specs exist to make
-# a cross-tenant read or write impossible to ship again unnoticed.
-#
-# The hole was structural rather than accidental: `Portfolio` carries no
-# tenant_id of its own — its tenant lives on `Session`, which IS `TenantScoped` —
-# and four endpoints reached it with a bare `Portfolio.find(params[:id])`. Role
-# authorisation (`authorize_auth_token! :assessor`) only proved the caller was
-# *an* assessor, never that the record was theirs.
 RSpec.describe 'Portfolio tenancy', type: :request do
   def seed_org!(scheme, name)
     ActiveRecord::Base.connection.execute(<<~SQL.squish)
@@ -38,7 +30,6 @@ RSpec.describe 'Portfolio tenancy', type: :request do
     end
   end
 
-  # Assessor of organisation A — authenticated, correctly roled, wrong tenant.
   let(:headers_a) { auth_headers(user_id: 1, role: 'admin', scheme: 'tenant-a') }
 
   describe 'GET /api/v1/portfolios/:id/export' do

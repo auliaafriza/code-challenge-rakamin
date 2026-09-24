@@ -145,8 +145,6 @@ export default function VacancyNewPage() {
             </div>
           )}
 
-          {/* Spacing: the add button previously sat flush against the empty
-              state, reading as part of the placeholder rather than a control. */}
           <div className="pt-1">
             <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
               <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> Add skill expectation

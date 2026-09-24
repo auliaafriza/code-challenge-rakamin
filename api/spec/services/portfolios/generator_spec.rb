@@ -2,14 +2,6 @@
 
 require 'rails_helper'
 
-# Regeneration rewrites every portfolio_skill row. Because `portfolio_skills`
-# declares `has_one :assessor_override, dependent: :destroy`, the naive
-# implementation of that rewrite silently deleted the assessor's correction and
-# their written reasoning along with it.
-#
-# That is the one record in this system a rerun cannot reproduce, and the one a
-# candidate would use to contest an AI score. These specs exist so it cannot be
-# lost again by accident.
 RSpec.describe Portfolios::Generator do
   let(:organization) { seed_organization! }
 
@@ -106,9 +98,6 @@ RSpec.describe Portfolios::Generator do
 
       expect { generate!(broken) }.to raise_error(ActiveRecord::RecordInvalid)
 
-      # Without the surrounding transaction the first skill would already be
-      # committed and the second missing, leaving a half-written portfolio on
-      # screen under a "failed" status.
       expect(portfolio.reload.portfolio_skills.pluck(:skill_label).sort).to eq(before_labels)
     end
   end
@@ -134,8 +123,6 @@ RSpec.describe Portfolios::Generator do
       portfolio = generate!(response)
       skill = portfolio.portfolio_skills.find_by(skill_label: 'React / Frontend Development')
 
-      # nil means "we never measured this" — it must not be coerced into `low`,
-      # which reads to a hiring manager as a finding about the candidate.
       expect(skill.ai_confidence).to be_nil
     end
   end

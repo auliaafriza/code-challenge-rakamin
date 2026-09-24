@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 module Sessions
-  # Activates a pending session and initializes coverage map rows from assessment skills.
-  # Called when a candidate connects to the audio WebSocket and begins the interview.
   class StartHandler
     def initialize(session)
       @session = session

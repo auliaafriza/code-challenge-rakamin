@@ -61,9 +61,6 @@ function SessionRow({
   const isLive = session.status === "active";
   const isEnded = session.status === "ended";
   const isPending = session.status === "pending";
-  // A session now always carries a name, but rows created before this change
-  // may not — so the placeholder stays, and it is marked as a placeholder
-  // rather than presented as if it were the person's name.
   const displayName = session.candidate_name || `Kandidat ${index} (tanpa nama)`;
 
   return (
@@ -152,9 +149,6 @@ function SessionRow({
               Results
             </Button>
           )}
-          {/* Only an unused invite can be discarded. Once a candidate has
-              spoken, the session is evidence about a person and deleting it
-              would erase the basis of a decision that was already made. */}
           {isPending && (
             <ConfirmDialog
               trigger={
@@ -233,9 +227,6 @@ export default function AssessmentInvitePage() {
 
   const handleInviteCandidate = async () => {
     const name = candidateNameInput.trim();
-    // The name used to be optional, which produced a list of "Candidate 1",
-    // "Candidate 2" rows that no one could match to a real person — in a tool
-    // whose output is a hiring judgement about that person.
     if (name === "") {
       setNameError("Nama kandidat wajib diisi supaya sesi ini bisa ditelusuri nanti.");
       return;
@@ -348,8 +339,6 @@ export default function AssessmentInvitePage() {
         }
       />
 
-      {/* Configuration summary — the interview language now appears where the
-          assessor can actually check it before inviting anyone. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <Clock className="h-3 w-3" aria-hidden="true" />
@@ -374,7 +363,6 @@ export default function AssessmentInvitePage() {
         </div>
       )}
 
-      {/* Invite dialog */}
       <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -419,7 +407,6 @@ export default function AssessmentInvitePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Rename dialog */}
       <Dialog open={renaming !== null} onOpenChange={(open) => !open && setRenaming(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>

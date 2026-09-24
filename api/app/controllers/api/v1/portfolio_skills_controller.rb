@@ -47,12 +47,6 @@ module Api
         regenerate_stale_fitgap_reports
       end
 
-      # Any fit/gap report built before this correction is now older than the
-      # assessor's own decision, so it is destroyed and rebuilt.
-      #
-      # The guard matters: the report page will see the resulting 404 and, left to
-      # itself, ask for generation again — two workers, one unique index, one
-      # crash, and two paid model calls for one answer.
       def regenerate_stale_fitgap_reports
         portfolio = @portfolio_skill.portfolio
 
@@ -61,7 +55,7 @@ module Api
           report.destroy
 
           if FitGap::JobGuard.claim(portfolio.id, vacancy_id)
-            FitGapGeneratorWorker.perform_async(portfolio.id, vacancy_id)
+            BackgroundJob.enqueue(FitGapGeneratorWorker, portfolio.id, vacancy_id)
           else
             Rails.logger.info(
               "[N13] Regeneration already in flight: portfolio=#{portfolio.id} vacancy=#{vacancy_id}"
@@ -70,12 +64,6 @@ module Api
         end
       end
 
-      # Reached through the tenant-scoped session, never by bare id.
-      #
-      # `PortfolioSkill.joins(:portfolio).find(id)` applied no tenancy at all, so
-      # an assessor in one organisation could write an override onto another
-      # organisation's candidate — a cross-tenant WRITE to the rating that decides
-      # whether someone gets hired.
       def set_portfolio_skill
         @portfolio_skill = PortfolioSkill
                            .where(portfolio_id: Portfolio.where(session_id: Session.select(:id)).select(:id))

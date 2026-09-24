@@ -40,8 +40,6 @@ export function useAudioPlayback() {
     nextPlayTimeRef.current = startTime + buffer.duration;
   }, []);
 
-  // Registers a one-shot callback that fires when the audio queue drains.
-  // Polls every 250ms until nextPlayTime has passed, then calls the callback.
   const waitForDrain = useCallback((fn: () => void) => {
     const ctx = audioCtxRef.current;
     // Resolve immediately if queue is already empty

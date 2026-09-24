@@ -9,15 +9,6 @@ interface DataIntegrityNoticeProps {
   subject?: string;
 }
 
-/**
- * What the user sees when a response does not match the contract.
- *
- * The failure this replaces was silent: a renamed field produced `undefined`,
- * React rendered `undefined` as nothing, and a blank cell in a hiring report
- * looked like a deliberate design choice. Refusing to render is the safer
- * outcome — a decision-maker who sees "this report is incomplete" will ask,
- * where one who sees a tidy blank cell will not.
- */
 export default function DataIntegrityNotice({
   error,
   onRetry,

@@ -34,9 +34,6 @@ export default function TranscriptPage() {
       .finally(() => setLoading(false));
   }, [sessionId]);
 
-  // Scroll the cited turn into view once the transcript has rendered, so a
-  // reviewer following a quote lands on the moment it was said rather than at
-  // the top of a 40-minute conversation.
   useEffect(() => {
     if (loading || targetTurnId === null) return;
     const el = document.getElementById(`turn-${targetTurnId}`);

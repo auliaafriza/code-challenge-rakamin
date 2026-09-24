@@ -2,8 +2,6 @@
 
 require 'faye/websocket'
 
-# Rack middleware for assessor live coverage monitoring at /ws/sessions/:id/coverage.
-# Server-push only: subscribes to Redis pub/sub and forwards coverage updates to the assessor.
 class CoverageWebSocketMiddleware
   COVERAGE_PATH_PATTERN = %r{\A/ws/sessions/([^/]+)/coverage\z}
 
@@ -29,10 +27,6 @@ class CoverageWebSocketMiddleware
     redis_sub = nil  # track subscription Redis instance for cleanup
 
     ws.on :open do |_event|
-      # Try header-based auth first (assessor dashboard with JWT in header).
-      # If no Authorization header is present, wait for a { type: "auth", token }
-      # message — this matches the pattern used by the audio WS for browser clients
-      # that can't set WebSocket headers.
       session, error = authenticate_assessor(env, session_id)
       next if error  # wait for auth message
 
@@ -46,7 +40,6 @@ class CoverageWebSocketMiddleware
       message = JSON.parse(event.data) rescue next
       next unless message['type'] == 'auth'
 
-      # Already authenticated via header — ignore
       next if redis_sub
 
       token   = message['token'].to_s
@@ -64,8 +57,6 @@ class CoverageWebSocketMiddleware
 
     ws.on :close do |_event|
       Rails.logger.debug("[CoverageWS] Assessor disconnected from session #{session_id}")
-      # H4 fix: unsubscribe so the blocking Thread exits cleanly instead of
-      # hanging forever waiting for the next message.
       Thread.new { redis_sub&.unsubscribe rescue nil }
     end
 

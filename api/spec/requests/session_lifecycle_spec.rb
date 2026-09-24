@@ -2,10 +2,6 @@
 
 require 'rails_helper'
 
-# Three claims the UI now makes about sessions, held to the API that has to
-# honour them. Each one was previously enforced nowhere: the assessment date was
-# not checked, the candidate name was optional, and there was no way to correct
-# or discard an invite at all.
 RSpec.describe 'Session lifecycle', type: :request do
   def seed_org!(scheme, name)
     ActiveRecord::Base.connection.execute(<<~SQL.squish)
@@ -105,8 +101,6 @@ RSpec.describe 'Session lifecycle', type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    # The important half. A finished interview is the evidence behind a decision
-    # about a person — it must survive a delete button.
     it 'refuses to delete a session that has already started' do
       assessment = create_assessment
       session = with_tenant(org) do

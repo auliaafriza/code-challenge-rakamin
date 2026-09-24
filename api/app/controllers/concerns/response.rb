@@ -14,14 +14,17 @@ module Response
     render json: payload, status:
   end
 
-  def paginated_response(collection, serializer: nil, **extra)
-    meta = {
+  def pagination_meta(collection)
+    {
       current_page: collection.current_page,
       total_pages:  collection.total_pages,
       total_count:  collection.total_count,
       per_page:     collection.limit_value
     }
+  end
 
+  def paginated_response(collection, serializer: nil, **extra)
+    meta = pagination_meta(collection)
     data = serializer ? collection.map { |r| serializer.new(r).as_json } : collection.as_json
     render json: { data:, meta: }.merge(extra)
   end

@@ -8,8 +8,6 @@ Rails.application.configure do
   # While tests run files are not watched, reloading is not necessary.
   config.cache_classes = true
 
-  # Eager loading loads your whole application. When running a single test locally,
-  # this might not be necessary. It's recommended that you set this to true in CI though.
   config.eager_load = ENV["CI"].present?
 
   # Configure public file server for tests with Cache-Control for performance.
@@ -23,8 +21,6 @@ Rails.application.configure do
   config.action_controller.perform_caching = false
   config.cache_store = :null_store
 
-  # Render exception templates for rescuable exceptions and return status
-  # code for other exceptions.
   config.action_dispatch.show_exceptions = false
 
   # Disable request forgery protection in test environment.
@@ -38,12 +34,6 @@ Rails.application.configure do
 
   # Tell Active Support which deprecation messages to disallow.
   config.active_support.disallowed_deprecation_warnings = []
-
-  # Raises error for missing translations.
-  # config.i18n.raise_on_missing_translations = true
-
-  # Annotate rendered view with file names.
-  # config.action_view.annotate_rendered_view_with_filenames = true
 
   # Log level
   config.log_level = :warn

@@ -5,17 +5,6 @@ import { useForm } from "react-hook-form";
 import CustomSkillForm from "./CustomSkillForm";
 import type { AssessmentFormValues } from "@/pages/assessments/AssessmentNewPage";
 
-/**
- * The custom skill form asks for seven required fields, every one of them a
- * definition the AI will grade a human being against. All seven were registered
- * `required: true` and not one of them rendered a message.
- *
- * The failure mode was not a missing error — it was a *silent* one: submit
- * blocked, button re-enabled, page unchanged. The assessor's only feedback that
- * anything had happened was that nothing had happened. These tests hold the
- * form to saying which field is wrong, and to saying it somewhere assistive
- * technology will announce.
- */
 function Harness({ onSubmit }: { onSubmit?: () => void }) {
   const form = useForm<AssessmentFormValues>({
     defaultValues: {

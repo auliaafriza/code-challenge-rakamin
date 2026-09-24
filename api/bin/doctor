@@ -1,0 +1,160 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Checks everything the API needs before it can serve a request, and prints the
+# exact command to fix whatever is missing.
+#
+#   bin/doctor
+#
+# Deliberately runs without loading Rails: the failures worth catching here are
+# the ones that stop Rails from booting in the first place.
+
+require 'socket'
+require 'yaml'
+
+ROOT = File.expand_path('..', __dir__)
+PASS = "\e[32m✓\e[0m"
+FAIL = "\e[31m✗\e[0m"
+WARN = "\e[33m!\e[0m"
+
+@problems = []
+
+def check(label)
+  ok, detail, fix = yield
+rescue StandardError => e
+  # A doctor that crashes is worse than no doctor: it hides every check below it.
+  puts format('  %s %-34s %s', FAIL, label, "tidak bisa diperiksa (#{e.class})")
+  @problems << [label, 'periksa manual']
+else
+  mark = ok == :warn ? WARN : (ok ? PASS : FAIL)
+  puts format('  %s %-34s %s', mark, label, detail.to_s)
+  @problems << [label, fix] if ok == false && fix
+end
+
+def port_open?(host, port, timeout = 1)
+  Socket.tcp(host, port, connect_timeout: timeout) { |s| s.close }
+  true
+rescue StandardError
+  false
+end
+
+def env_from_application_yml
+  path = File.join(ROOT, 'config/application.yml')
+  return {} unless File.exist?(path)
+
+  YAML.safe_load_file(path) || {}
+rescue StandardError
+  {}
+end
+
+env = env_from_application_yml
+
+puts "\nAI Interview API — pemeriksaan lingkungan\n\n"
+
+check('Ruby 3.3.2') do
+  wanted = File.read(File.join(ROOT, '.ruby-version')).strip
+  actual = RUBY_VERSION
+  [actual == wanted, "terpasang #{actual}", "rbenv install #{wanted} && rbenv local #{wanted}"]
+end
+
+check('config/application.yml') do
+  exists = File.exist?(File.join(ROOT, 'config/application.yml'))
+  [exists, exists ? 'ada' : 'belum ada', 'cp config/application.yml.sample config/application.yml']
+end
+
+REQUIRED_ENV = {
+  'SECRET_KEY_BASE' => 'API tidak bisa memverifikasi token tanpa ini',
+  'DB_NAME' => nil,
+  'DB_USERNAME' => nil
+}.freeze
+
+REQUIRED_ENV.each_key do |key|
+  check("ENV #{key}") do
+    value = ENV[key].to_s.empty? ? env[key].to_s : ENV[key].to_s
+    filled = !value.empty? && !value.start_with?('your_')
+    [filled, filled ? 'terisi' : 'kosong', "isi #{key} di config/application.yml"]
+  end
+end
+
+check('ENV GEMINI_API_KEY') do
+  value = ENV['GEMINI_API_KEY'].to_s.empty? ? env['GEMINI_API_KEY'].to_s : ENV['GEMINI_API_KEY'].to_s
+  filled = !value.empty? && !value.start_with?('your_')
+  # Server tetap boot tanpa kunci ini, jadi bukan blokir — tapi wawancara,
+  # portfolio, dan fit/gap akan gagal saat dipakai. Dibedakan dari yang fatal.
+  [filled ? true : :warn,
+   filled ? 'terisi' : 'kosong — login & dashboard jalan, fitur AI tidak',
+   nil]
+end
+
+pg_host = env.fetch('DB_HOST', 'localhost')
+pg_port = env.fetch('DB_PORT', '5432').to_i
+
+check('PostgreSQL') do
+  up = port_open?(pg_host, pg_port)
+  [up, up ? "hidup di #{pg_host}:#{pg_port}" : "tidak menjawab di #{pg_host}:#{pg_port}",
+   'brew services start postgresql@16']
+end
+
+redis_url = env.fetch('REDIS_URL', 'redis://localhost:6379/1')
+redis_host = redis_url[%r{//([^:/]+)}, 1] || 'localhost'
+redis_port = (redis_url[%r{//[^:/]+:(\d+)}, 1] || 6379).to_i
+
+check('Redis') do
+  up = port_open?(redis_host, redis_port)
+  # API kini tetap jalan tanpa Redis di development; yang berhenti cuma Sidekiq.
+  [up ? true : :warn,
+   up ? "hidup di #{redis_host}:#{redis_port}" : 'mati — API tetap jalan, Sidekiq tidak',
+   'brew services start redis']
+end
+
+check('Port 3001 (API)') do
+  taken = port_open?('127.0.0.1', 3001)
+  # Naming the process is the whole point: "sudah dipakai" without a PID leaves
+  # the reader to go find it, and it is almost always a server they forgot they
+  # started, still running the code from before their last change.
+  holder = taken ? `lsof -nP -iTCP:3001 -sTCP:LISTEN -Fcp 2>/dev/null`.scan(/^[pc](.+)$/).flatten : []
+  pid, name = holder
+  detail =
+    if !taken then 'bebas'
+    elsif pid then "dipakai #{name} (PID #{pid})"
+    else 'sudah dipakai proses lain'
+    end
+
+  [!taken, detail, pid ? "kill #{pid}   # lalu jalankan ulang rails server" : 'hentikan proses yang memakai port 3001']
+end
+
+check('tmp/pids/server.pid') do
+  pidfile = File.join(ROOT, 'tmp/pids/server.pid')
+  stale = File.exist?(pidfile)
+  [stale ? :warn : true, stale ? 'ada — sisa server sebelumnya' : 'bersih', nil]
+end
+
+check('Puma mode') do
+  puma = File.read(File.join(ROOT, 'config/puma.rb'))
+  cluster_in_dev = puma.match?(/^\s*workers\s+ENV\.fetch\('WEB_CONCURRENCY',\s*[1-9]/)
+  [!cluster_in_dev,
+   cluster_in_dev ? 'cluster mode di development (fork mematikan reactor EventMachine)' : 'single mode di development',
+   'jalankan dengan WEB_CONCURRENCY=0, atau pakai config/puma.rb terbaru']
+end
+
+check('Gem terpasang') do
+  ok = system('bundle check > /dev/null 2>&1')
+  [ok, ok ? 'lengkap' : 'ada yang kurang', 'bundle install']
+end
+
+app_base = ENV['APP_BASE_URL'].to_s.empty? ? env.fetch('APP_BASE_URL', '') : ENV['APP_BASE_URL']
+check('APP_BASE_URL') do
+  bad = app_base.include?(':3001')
+  [!bad, bad ? "#{app_base} menunjuk ke port API" : (app_base.empty? ? 'kosong' : app_base),
+   'isi dengan URL frontend, mis. http://localhost:5173']
+end
+
+puts
+if @problems.empty?
+  puts "  Semua siap. Jalankan:\n\n    bundle exec rails server\n\n"
+  exit 0
+end
+
+puts "  Yang perlu dibereskan:\n\n"
+@problems.each { |label, fix| puts "    #{label}\n      #{fix}\n\n" }
+exit 1

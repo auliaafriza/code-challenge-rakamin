@@ -1,17 +1,3 @@
-/**
- * Hand-written types for parts of the API this app has not yet put under a
- * runtime contract.
- *
- * Everything on the portfolio → fit/gap path is deliberately NOT declared here.
- * Those types are inferred from the Zod schemas in `services/schemas.ts` and
- * re-exported below, so the type and the runtime check can never disagree.
- *
- * That split is the point. A hand-written interface is a claim about the server
- * that nothing verifies: this file used to declare `required_level` while the
- * API sent `expected_level`, and the compiler was perfectly happy while the
- * Required column of every fit/gap report rendered blank.
- */
-
 export type {
   Portfolio,
   PortfolioSkill,
@@ -26,20 +12,26 @@ export interface Assessment {
   name: string;
   time_limit_min: number;
   language?: "en" | "id";
-  /**
-   * ISO timestamp after which invite links stop working. Null = no expiry.
-   * A hiring process with no end date leaves personal data collected under an
-   * open-ended retention window, which UU PDP does not contemplate.
-   */
   expires_at?: string | null;
   system_prompt?: string;
   created_by?: number;
   created_at?: string;
   updated_at?: string;
   skills?: AssessmentSkill[];
+  /** Jumlah sesi yang pernah dibuat untuk assessment ini. */
+  sessions_count?: number;
+  completed_count?: number;
+  /** Sesi yang sedang berlangsung sekarang. */
+  active_count?: number;
+  skills_count?: number;
   latest_session?: {
+    id?: number;
     status: "pending" | "active" | "ended";
     end_reason?: string | null;
+    candidate_name?: string | null;
+    started_at?: string | null;
+    ended_at?: string | null;
+    created_at?: string | null;
   };
 }
 
@@ -74,6 +66,13 @@ export interface Session {
   ended_at?: string;
   duration_seconds?: number;
   created_at?: string;
+  /** Diisi hanya oleh GET /sessions (daftar lintas assessment). */
+  assessment?: {
+    id: number;
+    name: string;
+    time_limit_min: number;
+    language?: string;
+  } | null;
 }
 
 export interface CoverageSkill {

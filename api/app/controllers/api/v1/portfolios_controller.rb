@@ -5,9 +5,6 @@ module Api
     class PortfoliosController < ApiController
       authorize_auth_token! :assessor
 
-      # A portfolio is "stuck" once it has been in flight for longer than any
-      # legitimate run takes. The UI needs this to offer a way out instead of
-      # spinning under a message that promises two minutes forever.
       GENERATION_STALL_AFTER = 5.minutes
 
       before_action :set_session,   only: %i[show regenerate]
@@ -28,9 +25,6 @@ module Api
 
         return json_error('No portfolio found for this session', :not_found) if portfolio.nil?
 
-        # Previously this accepted `failed` only. A portfolio parked in `pending`
-        # — the exact state produced when Sidekiq is down when the session ends —
-        # could therefore never be retried from inside the product at all.
         unless portfolio.failed? || stalled?(portfolio)
           return json_error(
             "Portfolio is still being generated (status: #{portfolio.generation_status}). " \
@@ -44,7 +38,7 @@ module Api
           generation_error:      nil,
           generation_started_at: Time.current
         )
-        PortfolioGeneratorWorker.perform_async(@session.id)
+        BackgroundJob.enqueue(PortfolioGeneratorWorker, @session.id)
 
         json_response(
           message:   'Portfolio generation queued',
@@ -69,8 +63,6 @@ module Api
 
         vacancy = scoped_vacancy(params[:vacancy_id])
 
-        # Interview transcripts are personal data under UU PDP. Who read whose
-        # record, and when, has to be answerable.
         Rails.logger.info(
           "[audit] portfolio_export user=#{current_user&.id} tenant=#{current_tenant_id} " \
           "portfolio=#{@portfolio.id} format=#{format}"
@@ -105,7 +97,8 @@ module Api
         end
 
         FitGapReport.find_by(portfolio_id: portfolio.id, vacancy_id: vacancy.id)&.destroy
-        enqueue_fit_gap(portfolio, vacancy)
+        report = enqueue_fit_gap(portfolio, vacancy)
+        return json_response(report: fit_gap_json(report)) if report
 
         render json: { status: 'generating', message: 'Fit/gap report regeneration queued' },
                status: :accepted
@@ -129,7 +122,9 @@ module Api
         existing = FitGapReport.find_by(portfolio_id: portfolio.id, vacancy_id: vacancy.id)
         return json_response(report: fit_gap_json(existing)) if existing
 
-        enqueue_fit_gap(portfolio, vacancy)
+        report = enqueue_fit_gap(portfolio, vacancy)
+        return json_response(report: fit_gap_json(report)) if report
+
         render json: { status: 'generating', message: 'Fit/gap report generation queued' },
                status: :accepted
       end
@@ -140,23 +135,22 @@ module Api
         return if performed?
 
         report = FitGapReport.find_by(portfolio_id: portfolio.id, vacancy_id: params[:vacancy_id])
-        return json_error('Fit/gap report not found', :not_found) if report.nil?
+
+        if report.nil?
+          # 404 dipertahankan: frontend memakainya sebagai sinyal untuk memicu
+          # pembuatan. Yang diperbaiki pesannya — "not found" terbaca seperti
+          # data hilang, padahal laporannya memang belum pernah dibuat.
+          return json_error(
+            'Laporan fit/gap untuk lowongan ini belum dibuat. ' \
+            'Panggil POST /api/v1/portfolios/:id/fitgap untuk membuatnya.',
+            :not_found
+          )
+        end
 
         json_response(report: fit_gap_json(report))
       end
 
       private
-
-      # ── Tenant-safe lookups ────────────────────────────────────────────────
-      #
-      # `Portfolio` has no tenant_id of its own; its tenant lives on `Session`,
-      # which is `TenantScoped`. Reaching a portfolio by bare id therefore
-      # bypassed tenancy entirely: any authenticated assessor could export the
-      # verbatim interview quotes of another organisation's candidate — and, via
-      # the override endpoint, write to their ratings.
-      #
-      # Every lookup goes through the scoped session, exactly as `#show` already
-      # did. Cross-tenant ids become 404, not 200.
 
       def tenant_scoped_portfolios
         Portfolio.where(session_id: Session.select(:id))
@@ -185,15 +179,40 @@ module Api
         @portfolio = @session ? @session.portfolio : scoped_portfolio!(params[:id])
       end
 
+      # Returns the report when it had to be built inline, nil when it was queued.
+      #
+      # Without this the page waits for a worker that may never exist: with no
+      # Redis the job is dropped, the report is never written, and the request
+      # that asked for it already answered "generating". A spinner that never
+      # resolves is the worst of the three outcomes.
       def enqueue_fit_gap(portfolio, vacancy)
-        if FitGap::JobGuard.claim(portfolio.id, vacancy.id)
-          FitGapGeneratorWorker.perform_async(portfolio.id, vacancy.id)
-        else
+        unless FitGap::JobGuard.claim(portfolio.id, vacancy.id)
           Rails.logger.info(
             "[N13] Generation already in flight, not enqueueing again: " \
             "portfolio=#{portfolio.id} vacancy=#{vacancy.id}"
           )
+          return nil
         end
+
+        return nil if BackgroundJob.enqueue(FitGapGeneratorWorker, portfolio.id, vacancy.id)
+
+        build_fit_gap_inline(portfolio, vacancy)
+      end
+
+      def build_fit_gap_inline(portfolio, vacancy)
+        Rails.logger.warn(
+          "[N13] Antrean tidak tersedia, fit/gap dibuat langsung: " \
+          "portfolio=#{portfolio.id} vacancy=#{vacancy.id}"
+        )
+        FitGap::Engine.new(portfolio: portfolio, vacancy: vacancy).call
+      rescue StandardError => e
+        Rails.logger.error("[N13] Inline fit/gap failed: #{e.class}: #{e.message}")
+        nil
+      ensure
+        # The worker is what normally releases the claim. When it never runs,
+        # nobody else will, and the next attempt would be refused for ten
+        # minutes by a job that does not exist.
+        FitGap::JobGuard.release(portfolio.id, vacancy.id)
       end
 
       def stalled?(portfolio)
@@ -222,10 +241,6 @@ module Api
         }
       end
 
-      # `generation_error` holds the raw exception message from a Gemini call,
-      # which can carry fragments of the prompt — and the prompt contains the
-      # interview transcript. That must not cross the service boundary verbatim.
-      # The full message stays in the logs, where access is already controlled.
       def safe_generation_error(portfolio)
         raw = portfolio.generation_error
         return nil if raw.blank?
@@ -257,8 +272,6 @@ module Api
           evidence:           skill.evidence_quotes,
           evidence_turn_ids:  skill.try(:evidence_turn_ids) || [],
           competency_summary: skill.competency_summary,
-          # The number `ai_confidence` was derived from, so the caveat can be
-          # checked rather than trusted.
           probe_count:        probe_counts_for(portfolio)[skill.skill_label.to_s.downcase],
           coverage_state:     coverage_states_for(portfolio)[skill.skill_label.to_s.downcase]
         }
@@ -289,8 +302,6 @@ module Api
           override_level:     override.override_level,
           assessor_notes:     override.assessor_notes,
           overridden_by:      override.overridden_by,
-          # Accountability that a human can read. An id in a column is not an
-          # answer to "who decided this?".
           overridden_by_email: assessor_email(override.overridden_by),
           overridden_at:      override.overridden_at
         }

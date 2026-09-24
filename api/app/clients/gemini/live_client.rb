@@ -12,7 +12,6 @@ module Gemini
     INACTIVITY_TIMEOUT = 30 # reconnect if Gemini produces no meaningful response
     GATE_OPEN_DELAY    = 0.8 # delay opening mic gate so frontend audio buffer drains and avoids echo loop
 
-    # Silence pump: synthetic silent PCM frames sent during browser silence so Gemini's VAD detects end-of-speech.
     SILENCE_PUMP_DELAY    = 1
     SILENCE_PUMP_INTERVAL = 0.03
     SILENCE_FRAME_SAMPLES = 640
@@ -88,7 +87,6 @@ module Gemini
       @ws.send(audio_message(pcm_bytes))
     end
 
-    # Injects hidden context via realtimeInput.text — same channel as audio, no interleaving conflicts.
     def inject_context(text, turn_complete: true) # turn_complete kept for interface compat, ignored
       return false unless @connected && @ws
 
@@ -122,7 +120,6 @@ module Gemini
       @connected = false
     end
 
-    # Silences callbacks before this client is replaced on GoAway reconnect, preventing event bleed.
     def supersede!
       @superseded = true
       @inactivity_timer&.cancel
@@ -182,7 +179,6 @@ module Gemini
       }.to_json
     end
 
-    # Fire-once timer + timestamp avoids EM reactor churn and premature pump firing during intra-sentence pauses.
     def schedule_silence_pump
       stop_silence_pump if @silence_pumping
 
@@ -196,7 +192,6 @@ module Gemini
       end
     end
 
-    # Verifies real silence elapsed since last audio frame; reschedules if audio arrived during the timer window.
     def check_silence_pump_ready
       return if @silence_pumping || !@connected || !@ws || @superseded || !@last_real_audio_at || @model_emitting_audio
 
@@ -228,7 +223,6 @@ module Gemini
         }
       }.to_json.freeze
 
-      # Pump until: real audio arrives, Gemini responds (turnComplete), or connection closes/supersedes.
       @silence_pump_periodic = EM::PeriodicTimer.new(SILENCE_PUMP_INTERVAL) do
         if !@connected || !@ws || @superseded
           stop_silence_pump
@@ -247,7 +241,6 @@ module Gemini
       @silence_pumping = false
     end
 
-    # Triggers reconnect only when silence is being pumped, so a long candidate monologue doesn't kill the connection.
     def ensure_inactivity_watchdog
       return if @inactivity_timer || @superseded
 
@@ -337,7 +330,6 @@ module Gemini
 
       data = JSON.parse(raw_data)
 
-      # Only meaningful responses count as activity; token updates do not (they fire even when Gemini stalls).
       record_activity! if data['serverContent'] || data['setupComplete']
 
       log_gemini_event(data)
@@ -385,8 +377,6 @@ module Gemini
       @output_text_buffer << text.to_s
     end
 
-    # Must run before turnComplete handling — both can arrive in the same message and order matters.
-    # Flushes transcription immediately but delays gate open by GATE_OPEN_DELAY so the speaker drains and avoids echo.
     def handle_generation_complete(data)
       return unless data.dig('serverContent', 'generationComplete')
 
@@ -410,7 +400,6 @@ module Gemini
       end
     end
 
-    # Open gate immediately on candidate barge-in — they're actively speaking so echo risk is moot.
     def handle_interrupted(data)
       return unless data.dig('serverContent', 'interrupted') && @model_emitting_audio
 
@@ -426,13 +415,11 @@ module Gemini
       return unless data.dig('serverContent', 'turnComplete')
 
       if @model_emitting_audio
-        # turnComplete without generationComplete — model interrupted or generation ended abruptly.
         @model_emitting_audio = false
         Rails.logger.info('[Gemini::LiveClient] Model interrupted — turnComplete without generationComplete')
         flush_output_buffer
         @on_model_turn_complete&.call
       elsif @model_interrupted
-        # Stale post-interruption turnComplete — already handled via `interrupted`.
         @model_interrupted = false
       else
         # User's turn complete (or harmless stale model turnComplete after generationComplete).
@@ -454,7 +441,6 @@ module Gemini
       @on_resumption_token_update&.call(handle)
     end
 
-    # Session resumption is not a handshake — if a handle was sent, the session is already resumed at setupComplete.
     def handle_setup_complete(data)
       return unless data['setupComplete']
 

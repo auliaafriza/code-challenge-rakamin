@@ -37,19 +37,39 @@ export default function InterviewPage() {
   const reconnectedPromptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectionLostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [micMuted, setMicMuted] = useState(false);
+  const [linkError, setLinkError] = useState<"expired" | "unknown" | "unreachable" | null>(null);
   const micMutedRef = useRef(false);
 
   // Fetch candidate info
-  useEffect(() => {
+  const loadCandidateInfo = useCallback(() => {
     if (!token) return;
+    setLinkError(null);
+
     sessionsApi.getCandidateInfo(token)
       .then((res) => {
         setCandidateInfo(res.data);
         setSessionId(res.data.session_id);
         if (res.data.session_status === "ended") setInterviewState("complete");
       })
-      .catch(() => setInterviewState("complete"));
+      .catch((e) => {
+        // Semua kegagalan dulu berakhir di layar "Interview Complete". Kandidat
+        // yang belum memulai apa pun diberi tahu wawancaranya sudah selesai,
+        // lalu menutup tab dan menunggu hasil yang tidak akan pernah ada —
+        // sementara sesinya tetap tercatat "pending" dan tidak ada yang tahu.
+        const status = e?.response?.status;
+        if (status === 410) {
+          setLinkError("expired");
+        } else if (status === 404) {
+          setLinkError("unknown");
+        } else {
+          setLinkError("unreachable");
+        }
+      });
   }, [token]);
+
+  useEffect(() => {
+    loadCandidateInfo();
+  }, [loadCandidateInfo]);
 
   const muteRef = useRef<(() => void) | null>(null);
   const unmuteRef = useRef<(() => void) | null>(null);
@@ -58,7 +78,6 @@ export default function InterviewPage() {
     setInterviewState(state);
 
     if (state === "draining_audio") {
-      // Mute mic, stop sending — wait for audio queue to drain then call audio_complete
       muteRef.current?.();
       audioCompleteCalledRef.current = false;
       // Safety timeout: call audio_complete after 10s even if drain never fires
@@ -106,8 +125,6 @@ export default function InterviewPage() {
       clearTimeout(audioCompleteSafetyTimerRef.current);
       audioCompleteSafetyTimerRef.current = null;
     }
-    // Retry until success — endpoint now always returns ended:true or an error.
-    // ended:false is no longer a valid response; any success means the session ended.
     const attempt = async (delay: number) => {
       try {
         await sessionsApi.audioComplete(token);
@@ -164,9 +181,6 @@ export default function InterviewPage() {
     setInterviewState("connecting");
     connect();
     await startCapture();
-    // Start muted — only unmute when backend sends speaker_changed: candidate.
-    // This prevents mic audio from being sent during AI speech, since separate
-    // AudioContexts for capture/playback break the browser's echo cancellation.
     muteRef.current?.();
   }, [sessionId, connect, startCapture]);
 
@@ -186,6 +200,40 @@ export default function InterviewPage() {
       : connectionState === "connected"
       ? "connected"
       : "reconnecting";
+
+  // ── Link tidak bisa dipakai ─────────────────────────────────────────────
+  if (linkError) {
+    const copy = {
+      expired: {
+        title: "This interview link has expired",
+        body: "The hiring team closed this assessment. Please contact the recruiter who invited you — they can issue a new link.",
+        retry: false,
+      },
+      unknown: {
+        title: "We could not find this interview",
+        body: "The link may have been copied incompletely. Please check the full link in your invitation email, or contact the recruiter who invited you.",
+        retry: false,
+      },
+      unreachable: {
+        title: "We could not load your interview",
+        body: "This is a problem on our side, not with your link. Your interview has not started, so nothing has been lost.",
+        retry: true,
+      },
+    }[linkError];
+
+    return (
+      <div className="mx-auto max-w-xl space-y-4 px-4 py-16 text-center">
+        <div className="text-4xl" aria-hidden="true">⚠️</div>
+        <h2 className="text-xl font-semibold">{copy.title}</h2>
+        <p className="text-sm leading-relaxed text-muted-foreground">{copy.body}</p>
+        {copy.retry && (
+          <Button variant="outline" onClick={loadCandidateInfo}>
+            Try again
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   // ── State A: Pre-start ──────────────────────────────────────────────────
   if (interviewState === "idle") {
@@ -247,7 +295,6 @@ export default function InterviewPage() {
 
   return (
     <div className="max-w-xl mx-auto px-4 flex flex-col h-full">
-      {/* Top bar */}
       <div className="flex items-center justify-between py-3 border-b sticky top-12 bg-white z-10">
         <span className="text-sm font-medium">AI Interview</span>
         {candidateInfo && (
@@ -259,7 +306,6 @@ export default function InterviewPage() {
         )}
       </div>
 
-      {/* Reconnecting banner */}
       {interviewState === "reconnecting" && (
         connectionLostLong ? (
           <div className="flex items-center gap-2 text-sm bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-2.5 mt-2">
@@ -267,14 +313,13 @@ export default function InterviewPage() {
             <span>Connection is taking too long to restore. Please wait, and contact the interviewer if this persists.</span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-sm bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg px-4 py-2.5 mt-2">
+          <div className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-300 text-amber-900 rounded-lg px-4 py-2.5 mt-2">
             <span className="animate-pulse">●</span>
             <span>Briefly reconnecting — please wait a moment.</span>
           </div>
         )
       )}
 
-      {/* Reconnected prompt */}
       {reconnectedPrompt && (
         <div className="flex items-center justify-between text-sm bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-2.5 mt-2">
           <span>Reconnected — please say <strong>"check"</strong> or continue your answer to resume.</span>
@@ -282,7 +327,6 @@ export default function InterviewPage() {
         </div>
       )}
 
-      {/* Voice indicator */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 py-8">
         {interviewState === "connecting" ? (
           <div className="text-sm text-muted-foreground animate-pulse">Connecting...</div>
@@ -307,7 +351,6 @@ export default function InterviewPage() {
               />
             )}
 
-            {/* Transcript */}
             {transcript.length > 0 && (
               <div className="w-full space-y-2 overflow-y-auto max-h-[60vh]">
                 {transcript.map((turn, i) => (
@@ -319,7 +362,6 @@ export default function InterviewPage() {
         )}
       </div>
 
-      {/* Bottom bar */}
       <div className="border-t py-3 flex items-center justify-between gap-4 sticky bottom-0 bg-white">
         <ConnectionStatus state={wsConnectionStatus} />
 

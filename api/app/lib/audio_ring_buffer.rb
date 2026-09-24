@@ -1,13 +1,5 @@
 # frozen_string_literal: true
 
-# Fixed-size circular buffer for raw PCM audio frames.
-#
-# Stores timestamped chunks so a precise time-range slice can be replayed
-# after a Gemini Live reconnection. Capacity is enforced by byte count — older
-# chunks are evicted automatically when the buffer is full.
-#
-# Thread safety: NOT thread-safe by design. Intended for exclusive use within
-# the EventMachine reactor thread where all audio callbacks run.
 class AudioRingBuffer
   # 60 seconds at 16kHz 16-bit mono = 32KB/s × 60 = ~1.92MB per session
   DEFAULT_CAPACITY_SECONDS = 60

@@ -12,17 +12,12 @@ Rails.application.configure do
   # Full error reports are disabled.
   config.consider_all_requests_local = false
 
-  # Ensures that a master key has been made available in ENV["RAILS_MASTER_KEY"],
-  # config/master.key, or an environment key such as config/credentials/production.key.
-  # config.require_master_key = true
-
   # Disable serving static files from `public/`.
   config.public_file_server.enabled = ENV["RAILS_SERVE_STATIC_FILES"].present?
 
   # Enable log buffering.
   config.force_ssl = ENV.fetch("FORCE_SSL", "true") == "true"
 
-  # Log to STDOUT — required for log aggregation in containerized deployments.
   logger           = ActiveSupport::Logger.new($stdout)
   logger.formatter = config.log_formatter
   config.logger    = ActiveSupport::TaggedLogging.new(logger)

@@ -20,15 +20,8 @@ class Assessment < ApplicationRecord
   scope :open,    -> { where('expires_at IS NULL OR expires_at > ?', Time.current) }
   scope :expired, -> { where('expires_at IS NOT NULL AND expires_at <= ?', Time.current) }
 
-  # An assessment past its date still exists and is still readable — the
-  # judgements it produced are evidence and must not vanish. What stops is the
-  # ability to start anything new against it.
   def expired?
     expires_at.present? && expires_at <= Time.current
   end
 
-  # Deliberately not a validation on `expires_at > Time.current`: an assessment
-  # that has already expired must remain saveable, otherwise an assessor could
-  # not reopen it by editing the date. The form supplies `min=today` for new
-  # dates; the model only enforces that the value is a real time.
 end

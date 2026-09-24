@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 module Coverage
-  # Validates coverage state transitions and enforces hard rules.
-  # All transitions are forward-only and probe_count gated.
   class StateEngine
     STATES = %w[not_yet initiated partial covered].freeze
 
@@ -25,18 +23,12 @@ module Coverage
       true
     end
 
-    # Given a proposed update from N7, returns the safe state to apply.
-    # If the proposed state skips steps (e.g. not_yet → partial), we walk
-    # forward one step at a time, applying probe_count gates at each step.
-    # This prevents the state from getting stuck when Flash proposes a
-    # state multiple steps ahead.
     def self.resolve_state(current_state:, proposed_state:, probe_count:)
       return current_state if current_state == proposed_state
 
       current_idx  = STATES.index(current_state) || 0
       proposed_idx = STATES.index(proposed_state)
 
-      # Unknown proposed state — don't change
       return current_state unless proposed_idx && proposed_idx > current_idx
 
       # Walk forward one step at a time

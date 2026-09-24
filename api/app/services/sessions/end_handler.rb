@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 module Sessions
-  # Handles session termination: closes the session record, creates the portfolio,
-  # and enqueues the portfolio generation job (N10).
-  # Called on: manual end, all_covered auto-end, time_ceiling, or error.
   class EndHandler
     VALID_REASONS = Session::END_REASONS
 
@@ -55,7 +52,6 @@ module Sessions
     end
 
     def create_portfolio
-      # Idempotent — only create if one doesn't exist yet
       return if @session.portfolio.present?
 
       @session.create_portfolio!(
@@ -68,7 +64,7 @@ module Sessions
       portfolio = @session.reload.portfolio
       return unless portfolio
 
-      PortfolioGeneratorWorker.perform_async(@session.id)
+      BackgroundJob.enqueue(PortfolioGeneratorWorker, @session.id)
       Rails.logger.info("[N9/EndHandler] Enqueued N10 for session #{@session.id}")
     end
   end

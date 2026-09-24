@@ -3,6 +3,10 @@ import AssessorLayout from "@/components/layout/AssessorLayout";
 import CandidateLayout from "@/components/layout/CandidateLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import LoginPage from "@/pages/auth/LoginPage";
+import SignupPage from "@/pages/auth/SignupPage";
+import DashboardPage from "@/pages/dashboard/DashboardPage";
+import CandidatesPage from "@/pages/candidates/CandidatesPage";
+import AnalyticsPage from "@/pages/analytics/AnalyticsPage";
 import AssessmentListPage from "@/pages/assessments/AssessmentListPage";
 import AssessmentNewPage from "@/pages/assessments/AssessmentNewPage";
 import AssessmentEditPage from "@/pages/assessments/AssessmentEditPage";
@@ -19,13 +23,13 @@ import InterviewPage from "@/pages/interview/InterviewPage";
 export default function App() {
   return (
     <Routes>
-      {/* Auth routes */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
 
-      {/* Assessor routes (protected) */}
       <Route element={<ProtectedRoute />}>
       <Route element={<AssessorLayout />}>
-        <Route path="/" element={<Navigate to="/assessments" replace />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/assessments" element={<AssessmentListPage />} />
         <Route path="/assessments/new" element={<AssessmentNewPage />} />
         <Route path="/assessments/:id/edit" element={<AssessmentEditPage />} />
@@ -49,10 +53,11 @@ export default function App() {
         <Route path="/vacancies" element={<VacancyListPage />} />
         <Route path="/vacancies/new" element={<VacancyNewPage />} />
         <Route path="/vacancies/:id/edit" element={<VacancyEditPage />} />
+        <Route path="/candidates" element={<CandidatesPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
       </Route>
       </Route>
 
-      {/* Candidate route (public) */}
       <Route element={<CandidateLayout />}>
         <Route path="/interview/:token" element={<InterviewPage />} />
       </Route>

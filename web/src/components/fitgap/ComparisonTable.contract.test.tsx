@@ -4,23 +4,12 @@ import { z } from "zod";
 import ComparisonTable from "./ComparisonTable";
 import { skillComparisonSchema } from "@/services/schemas";
 
-/**
- * The decision surface, tested against the payload the API actually sends.
- *
- * These fixtures are not invented. They are the hash emitted by
- * `api/app/services/fit_gap/engine.rb#build_skill_comparisons`, persisted
- * verbatim into `fit_gap_reports.skill_comparisons` (jsonb) and handed to the
- * client untouched by `PortfoliosController#fit_gap_json`.
- */
-
 const parse = (raw: unknown[]) => z.array(skillComparisonSchema).parse(raw);
 
 const row = (label: string) => screen.getByText(label).closest("tr")!;
 
 describe("Fit/Gap comparison table — the decision surface", () => {
   it("states the level the role requires, even when the API still calls it expected_level", () => {
-    // The legacy shape: `expected_level`, no override flag. This is what a
-    // server that has not yet shipped the payload change sends.
     const legacy = parse([
       {
         skill_label: "System Design",
@@ -35,8 +24,6 @@ describe("Fit/Gap comparison table — the decision surface", () => {
 
     render(<ComparisonTable comparisons={legacy} />);
 
-    // L3 is the bar. Without it, "candidate L4" is a number with nothing to
-    // measure against — which is exactly what shipped.
     expect(row("System Design")).toHaveTextContent("L3");
   });
 
@@ -87,8 +74,6 @@ describe("Fit/Gap comparison table — the decision surface", () => {
 
     render(<ComparisonTable comparisons={comparisons} />);
 
-    // Legacy rows must not silently demote to "AI judgement" just because the
-    // author is unknown — that would relabel a human decision as a machine one.
     const target = row("Testing & QA");
     expect(within(target).getByTitle(/override/i)).toBeInTheDocument();
     expect(target).not.toHaveTextContent("Penilaian AI");
@@ -109,8 +94,6 @@ describe("Fit/Gap comparison table — the decision surface", () => {
 
     render(<ComparisonTable comparisons={comparisons} />);
 
-    // The old table printed this legend on every report, including reports with
-    // no overrides at all — a promise the page could not keep.
     expect(screen.queryByText(/dikoreksi assessor/i)).not.toBeInTheDocument();
   });
 
@@ -204,16 +187,12 @@ describe("Fit/Gap comparison table — the decision surface", () => {
 
     render(<ComparisonTable comparisons={comparisons} />);
 
-    // Rejecting a candidate on one probe's worth of evidence is the most
-    // consequential thing this report can get wrong. Say so on the page.
     const note = screen.getByRole("note");
     expect(note).toHaveTextContent(/Leadership & Ownership/);
     expect(note).toHaveTextContent(/sesi lanjutan/i);
   });
 
   it("refuses a payload that cannot state the bar at all", () => {
-    // Neither required_level nor expected_level: there is no honest way to render
-    // this row, so the boundary rejects it instead of drawing a blank cell.
     expect(() =>
       parse([
         {

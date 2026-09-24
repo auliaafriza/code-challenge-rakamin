@@ -64,11 +64,6 @@ export default function AssessmentEditPage() {
         if (cancelled) return;
         const a = res.data.assessment;
         setAssessmentName(a.name);
-        // `language` and `expires_at` were both absent from this reset call, so
-        // the form opened on defaults and the update payload below wrote those
-        // defaults back over whatever the assessor had actually chosen. An edit
-        // form that silently rewrites a field it never showed is worse than one
-        // that omits the field entirely.
         reset({
           name: a.name,
           time_limit_min: a.time_limit_min,
@@ -78,8 +73,6 @@ export default function AssessmentEditPage() {
         });
       })
       .catch(() => {
-        // The old code swallowed this into an empty catch and then rendered an
-        // empty form — indistinguishable from an assessment with no skills.
         if (!cancelled) setLoadFailed(true);
       })
       .finally(() => {
@@ -210,7 +203,6 @@ export default function AssessmentEditPage() {
           />
         </div>
 
-        {/* Interview language — present on Create, absent here until now. */}
         <div className="space-y-1.5">
           <Label htmlFor="language">
             Interview language <RequiredMark />

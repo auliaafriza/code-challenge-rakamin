@@ -25,9 +25,23 @@ class Session < ApplicationRecord
   def ended?   = status == 'ended'
   def pending? = status == 'pending'
 
+  DEFAULT_APP_BASE_URL = 'http://localhost:5173'
+
   def invite_url
-    base = ENV.fetch('APP_BASE_URL', 'http://localhost:3001')
-    "#{base}/interview/#{invite_token}"
+    "#{self.class.app_base_url}/interview/#{invite_token}"
+  end
+
+  def self.app_base_url
+    configured = ENV['APP_BASE_URL'].presence
+
+    if configured.nil? && Rails.env.production?
+      Rails.logger.warn(
+        '[Session#invite_url] APP_BASE_URL belum diset; link undangan akan ' \
+        "menunjuk ke #{DEFAULT_APP_BASE_URL} dan tidak bisa dibuka kandidat."
+      )
+    end
+
+    (configured || DEFAULT_APP_BASE_URL).sub(%r{/+\z}, '')
   end
 
   private

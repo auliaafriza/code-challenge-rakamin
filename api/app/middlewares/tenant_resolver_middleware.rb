@@ -1,18 +1,5 @@
 # frozen_string_literal: true
 
-# Extracted and adapted from rakamin-api.
-#
-# Resolves the current tenant (Organization) per request and sets:
-#   Current.organization  → the Organization AR record
-#   Current.tenant_id     → organization.id (used to scope all AI interview queries)
-#
-# Resolution order:
-#   1. JWT Bearer token → decode → use `scheme` claim
-#   2. X-Tenant-Scheme request header (for non-JWT requests / candidate flows)
-#   3. Referer host (fallback, same as rakamin-api HostService approach)
-#
-# If no tenant can be resolved, the request continues with no tenant set.
-# Individual controllers can enforce tenant presence via before_action.
 class TenantResolverMiddleware < ApplicationMiddleware
   def call(env)
     request = ActionDispatch::Request.new(env)

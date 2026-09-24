@@ -110,9 +110,6 @@ export default function AssessmentNewPage() {
           display_order: i,
         })),
       });
-      // The save used to succeed in silence — the page simply changed. A
-      // navigation is not confirmation: it looks identical to a redirect after
-      // a failure. Say what happened, then move.
       toast.success(`Assessment “${data.name}” berhasil dibuat.`);
       navigate(`/assessments/${res.data.assessment.id}/invite`);
     } catch (e) {
@@ -132,7 +129,6 @@ export default function AssessmentNewPage() {
       />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-        {/* Role title */}
         <div className="space-y-1.5">
           <Label htmlFor="name">
             Role title <RequiredMark />
@@ -146,7 +142,6 @@ export default function AssessmentNewPage() {
           <FieldMessage error={errors.name} id="name-error" />
         </div>
 
-        {/* Time limit */}
         <div className="space-y-1.5">
           <Label htmlFor="time_limit_min">
             Session time limit <RequiredMark />
@@ -171,8 +166,6 @@ export default function AssessmentNewPage() {
           />
         </div>
 
-        {/* Language — marked required, because the backend treats it as a real
-            setting and it decides which language the AI speaks to a candidate. */}
         <div className="space-y-1.5">
           <Label htmlFor="language">
             Interview language <RequiredMark />
@@ -201,7 +194,6 @@ export default function AssessmentNewPage() {
           </p>
         </div>
 
-        {/* Due date */}
         <div className="space-y-1.5">
           <Label htmlFor="expires_on">Berlaku sampai</Label>
           <Input
@@ -219,7 +211,6 @@ export default function AssessmentNewPage() {
 
         <Separator />
 
-        {/* Skills section */}
         <div className="space-y-3">
           <Label>
             Skills to assess <RequiredMark />
@@ -255,8 +246,6 @@ export default function AssessmentNewPage() {
             </DndContext>
           )}
 
-          {/* The add buttons used to sit flush against the empty state with no
-              gap, reading as part of the placeholder rather than as controls. */}
           <div className="flex flex-wrap gap-2 pt-1">
             <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
               <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />

@@ -89,9 +89,6 @@ export default function VacancyEditPage() {
       toast.success("Perubahan lowongan tersimpan.");
       navigate("/vacancies");
     } catch (e) {
-      // This handler previously had no catch at all: only `finally`. A failed
-      // save left the button re-enabled and the page unchanged, which reads
-      // exactly like a save that never got clicked.
       const message = await readErrorMessage(e, "Gagal menyimpan perubahan.");
       setError(message);
       toast.error(message);

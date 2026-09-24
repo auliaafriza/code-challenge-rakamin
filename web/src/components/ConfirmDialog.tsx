@@ -23,14 +23,6 @@ interface ConfirmDialogProps {
   onConfirm: () => Promise<void> | void;
 }
 
-/**
- * A confirmation step in front of anything irreversible.
- *
- * Assessments and vacancies could not be deleted at all from the UI — the
- * endpoints existed, nothing called them — so a mistyped assessment stayed in
- * the list forever. Adding delete without a confirmation would trade one problem
- * for a worse one, so the two arrive together.
- */
 export default function ConfirmDialog({
   trigger,
   title,
@@ -44,8 +36,6 @@ export default function ConfirmDialog({
   const [busy, setBusy] = useState(false);
 
   const handleConfirm = async (event: React.MouseEvent) => {
-    // Keep the dialog open while the request is in flight, so a failure can be
-    // reported against the thing the user was looking at.
     event.preventDefault();
     setBusy(true);
     try {

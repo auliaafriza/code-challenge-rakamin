@@ -21,16 +21,6 @@ const LEVEL_PLACEHOLDERS: Record<number, string> = {
 
 const ANCHOR_KEYS = ["l1_anchor", "l2_anchor", "l3_anchor", "l4_anchor", "l5_anchor"] as const;
 
-/**
- * The most punishing form in the product: seven required free-text fields,
- * every one of them a definition the AI will later grade a human being against.
- *
- * All seven were registered `required: true` and not one of them rendered a
- * message. Leave any single field blank and react-hook-form blocks the submit,
- * the Save button re-enables, and the page sits there — no message, no focus
- * move, no indication which of the seven fields is the problem. The assessor's
- * only feedback that anything happened at all was that nothing happened.
- */
 export default function CustomSkillForm({ index, form }: CustomSkillFormProps) {
   const {
     register,

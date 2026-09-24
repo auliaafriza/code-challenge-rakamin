@@ -15,9 +15,6 @@ class Vacancy < ApplicationRecord
   scope :open,   -> { where('closes_at IS NULL OR closes_at > ?', Time.current) }
   scope :closed, -> { where('closes_at IS NOT NULL AND closes_at <= ?', Time.current) }
 
-  # A closed vacancy stays comparable — existing Fit/Gap reports were written
-  # against it and deleting or hiding it would strand them. It is simply
-  # labelled, so nobody runs a fresh comparison against a role that is filled.
   def closed?
     closes_at.present? && closes_at <= Time.current
   end

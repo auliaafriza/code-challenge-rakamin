@@ -57,6 +57,7 @@ export default function LiveMonitorPage() {
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
   const [loading, setLoading] = useState(true);
   const [ending, setEnding] = useState(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [endError, setEndError] = useState(false);
   const [sessionActive, setSessionActive] = useState(true);
   const lastTurnRef = useRef<number>(0);
@@ -65,7 +66,6 @@ export default function LiveMonitorPage() {
   const { coverageMap, sessionEnded, sessionEndReason, isConnected } =
     useCoverageWebSocket(Number(sessionId));
 
-  // On session_ended from WS — stop polling, update local state
   useEffect(() => {
     if (sessionEnded) {
       setSessionActive(false);
@@ -73,8 +73,10 @@ export default function LiveMonitorPage() {
     }
   }, [sessionEnded]);
 
-  // Initial load
-  useEffect(() => {
+  const loadSession = useCallback(() => {
+    setLoading(true);
+    setLoadError(null);
+
     Promise.all([
       sessionsApi.get(Number(sessionId)),
       sessionsApi.getTranscript(Number(sessionId)),
@@ -91,8 +93,17 @@ export default function LiveMonitorPage() {
           lastTurnRef.current = turns[turns.length - 1].turn_number;
         }
       })
+      // Tanpa catch, kegagalan di sini jadi unhandled rejection: halaman tetap
+      // dirender dengan nama assessment kosong dan transkrip kosong, seolah
+      // wawancaranya memang belum dimulai. Yang memantau tidak punya cara
+      // membedakan "sesi masih sepi" dari "data gagal dimuat".
+      .catch((e) => setLoadError(e))
       .finally(() => setLoading(false));
   }, [sessionId]);
+
+  useEffect(() => {
+    loadSession();
+  }, [loadSession]);
 
   // Poll transcript every 3s while session is active
   const fetchNewTurns = useCallback(async () => {
@@ -106,7 +117,6 @@ export default function LiveMonitorPage() {
         lastTurnRef.current = res.data.turns[res.data.turns.length - 1].turn_number;
       }
     } catch {
-      // transient poll failure — silently skip, retry on next interval
     }
   }, [sessionId]);
 
@@ -137,12 +147,30 @@ export default function LiveMonitorPage() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-3">
+        <Link to={`/assessments/${id}/invite`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Kembali
+        </Link>
+        <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+          <p className="font-medium">Gagal memuat sesi ini.</p>
+          <p className="mt-1 text-destructive/80">
+            Transkrip dan status wawancara tidak bisa diambil dari server.
+          </p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={loadSession}>
+            Coba lagi
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const configuredSkills = coverageMap?.skills ?? [];
   const discoveredSkills = coverageMap?.discovered ?? [];
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -168,7 +196,6 @@ export default function LiveMonitorPage() {
         </div>
       </div>
 
-      {/* Session ended banner */}
       {sessionEnded && (
         <div className="flex items-center gap-2 text-sm bg-muted/50 border rounded-lg px-4 py-3">
           <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
@@ -191,7 +218,6 @@ export default function LiveMonitorPage() {
         </div>
       )}
 
-      {/* Coverage map */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">Coverage Status</CardTitle>
@@ -225,7 +251,6 @@ export default function LiveMonitorPage() {
             ))
           )}
 
-          {/* Discovered skills */}
           {discoveredSkills.length > 0 && (
             <>
               {configuredSkills.length > 0 && <Separator />}
@@ -265,7 +290,6 @@ export default function LiveMonitorPage() {
         </CardContent>
       </Card>
 
-      {/* Live transcript */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">Live Transcript</CardTitle>
@@ -289,7 +313,6 @@ export default function LiveMonitorPage() {
         </div>
       )}
 
-      {/* End Session */}
       <div className="flex justify-end">
         {sessionActive ? (
           <AlertDialog>

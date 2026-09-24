@@ -1,17 +1,6 @@
 # frozen_string_literal: true
 
 module FitGap
-  # Stops the same fit/gap report being generated twice at once.
-  #
-  # The race is easy to hit and was reachable from the UI in two clicks: saving an
-  # override destroys the stale report and enqueues a regeneration, then the
-  # report page gets its 404, decides nothing is running, and enqueues a second
-  # one. Both workers reach `FitGapReport.find_or_initialize_by(...).update!`,
-  # collide on the unique `(portfolio_id, vacancy_id)` index, and one dies — after
-  # both have already paid for a Gemini call.
-  #
-  # Fails OPEN. If Redis is unreachable, doing the work twice is a worse outcome
-  # than not doing it at all, so an unavailable guard must not block generation.
   class JobGuard
     TTL_SECONDS = 10 * 60
 

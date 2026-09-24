@@ -9,18 +9,6 @@ export function isLevel(value: unknown): value is Level {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 5;
 }
 
-/**
- * Parse an L-level coming from the API ("L3", 3, "3") into a Level.
- *
- * Returns `null` when the value cannot be trusted — missing, malformed, or out
- * of range. It NEVER falls back to a real level.
- *
- * This is deliberate. The previous implementation returned `1` for anything it
- * could not parse, which silently turned "we have no rating for this person"
- * into "this person is L1 Foundational" — the most damaging rating on the
- * scale, asserted about a candidate who never chose to be here and cannot see
- * or contest the result. An absent rating is not a rating.
- */
 export function parseLevel(value: unknown): Level | null {
   if (value === null || value === undefined) return null;
 
@@ -62,8 +50,6 @@ export const LEVEL_DESCRIPTIONS: Record<Level, string> = {
   5: "Expert",
 };
 
-// L-badge colors. Colour alone never carries the level — the label always ships
-// with it (WCAG 1.4.1).
 export const LEVEL_BADGE_CLASSES: Record<Level, string> = {
   1: "bg-neutral-200 text-neutral-800",
   2: "bg-blue-100 text-blue-800",
@@ -77,12 +63,6 @@ export const LEVEL_BADGE_UNKNOWN_CLASS =
 
 // ── Confidence ───────────────────────────────────────────────────────────────
 
-/**
- * `unknown` is a first-class state, distinct from `low`.
- *
- * "We did not measure this" and "we measured this and the evidence was thin"
- * are different claims about a person. The UI must not collapse them.
- */
 export type Confidence = "high" | "medium" | "low" | "unknown";
 
 export function parseConfidence(value: unknown): Confidence {
@@ -141,9 +121,9 @@ export const COVERAGE_STATE_WIDTH: Record<string, number> = {
 
 export const COVERAGE_STATE_COLOR: Record<string, string> = {
   not_yet: "bg-neutral-200",
-  initiated: "bg-blue-300",
-  partial: "bg-teal-400",
-  covered: "bg-teal-600",
+  initiated: "bg-blue-200",
+  partial: "bg-blue-400",
+  covered: "bg-blue-600",
 };
 
 // ── Fit/Gap result display ───────────────────────────────────────────────────
@@ -162,12 +142,6 @@ export const FIT_GAP_RESULT_CLASSES: Record<string, string> = {
   not_assessed: "text-neutral-600 bg-neutral-50 border border-dashed border-neutral-300",
 };
 
-/**
- * Text glyphs, not emoji. Emoji are announced by screen readers as their CLDR
- * name ("check mark button Match") and are the only differentiator for
- * colour-blind users when paired with colour alone. Every badge also carries
- * its text label.
- */
 export const FIT_GAP_RESULT_GLYPHS: Record<string, string> = {
   match: "=",
   gap: "▼",
@@ -177,20 +151,6 @@ export const FIT_GAP_RESULT_GLYPHS: Record<string, string> = {
 
 // ── Interview language ───────────────────────────────────────────────────────
 
-/**
- * The interview language was collected on the create form and then shown
- * nowhere else — not on the list, not on the detail page, and not even on the
- * edit form that claims to let you change it.
- *
- * That is not a cosmetic omission. The language decides which language the AI
- * interviewer speaks to the candidate in, so an assessor who picked the wrong
- * one at creation had no way to see the mistake and no way to correct it. The
- * first person to find out was the candidate, mid-interview.
- *
- * Keys mirror `Assessment::SUPPORTED_LANGUAGES` in api/app/models/assessment.rb.
- * If the two ever drift, the UI falls back to showing the raw code rather than
- * silently rendering nothing.
- */
 export const LANGUAGE_LABELS: Record<string, string> = {
   en: "English",
   id: "Bahasa Indonesia",
@@ -211,13 +171,6 @@ export function formatLanguage(code?: string | null): string {
 
 // ── Due dates ────────────────────────────────────────────────────────────────
 
-/**
- * Assessments and vacancies had no expiry at all: an invite link generated once
- * stayed valid forever. For a product that records judgements about people,
- * an interview link with no end date is a standing invitation to a stale
- * process — and, under UU PDP, personal data collected with no defined
- * retention boundary.
- */
 export function toDateInputValue(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);

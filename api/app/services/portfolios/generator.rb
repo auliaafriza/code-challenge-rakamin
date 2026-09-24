@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 module Portfolios
-  # N10: Generates a structured skill portfolio from the full transcript
-  # and final coverage map using Gemini Pro.
-  # Runs post-session as a background job.
   class Generator
     VALID_CONFIDENCE = %w[high medium low].freeze
 
@@ -22,10 +19,6 @@ module Portfolios
         generation_status: 'pending'
       )
 
-      # Stamped so the API can distinguish "still working" from "wedged". Without
-      # it, a portfolio whose worker never ran was indistinguishable from one
-      # that started a second ago, and the UI had to assume the optimistic case
-      # forever.
       portfolio.update!(generation_status: 'generating', generation_started_at: Time.current)
 
       prompt   = build_prompt
@@ -60,8 +53,6 @@ module Portfolios
         discovered: coverage_maps.select(&:is_discovered).map { |m| coverage_json(m) }
       }.to_json
 
-      # Turn numbers are rendered so the model can cite them. A quote a reviewer
-      # cannot locate in the transcript is a claim they cannot check.
       transcript_text = turns.map { |t| "##{t.turn_number} [#{t.speaker.upcase}]: #{t.text}" }.join("\n")
 
       <<~PROMPT
@@ -164,16 +155,6 @@ module Portfolios
 
     # ── Persistence ────────────────────────────────────────────────────────────
 
-    # Regeneration must NOT delete human judgement.
-    #
-    # `portfolio_skills` declares `has_one :assessor_override, dependent: :destroy`,
-    # so a bare `destroy_all` took the assessor's correction and their written
-    # reasoning with it — the exact record a candidate would use to contest an AI
-    # score, and the one thing in this system that no rerun can reproduce.
-    #
-    # Overrides are keyed by skill_label, held aside, and reattached to the newly
-    # written skills. The whole thing runs in one transaction so a failure partway
-    # through cannot leave a half-built portfolio with three skills and no overrides.
     def save_skills(portfolio, response)
       data = response.is_a?(Hash) ? response : JSON.parse(response)
 
@@ -207,8 +188,6 @@ module Portfolios
         attrs = preserved[skill.skill_label.to_s.downcase]
         next if attrs.nil?
 
-        # ai_level is re-read from the freshly generated skill, so the override
-        # still records what it is correcting rather than a stale prior value.
         skill.create_assessor_override!(attrs.merge('ai_level' => skill.ai_level))
         Rails.logger.info("[N10] Preserved assessor override for #{skill.skill_label.inspect}")
       end
@@ -216,8 +195,6 @@ module Portfolios
       dropped = preserved.keys - portfolio.portfolio_skills.map { |s| s.skill_label.to_s.downcase }
       return if dropped.empty?
 
-      # An override whose skill no longer exists cannot be reattached. Say so
-      # loudly: a human decision disappeared and somebody should know why.
       Rails.logger.warn(
         "[N10] portfolio=#{portfolio.id} #{dropped.size} assessor override(s) could not be " \
         "reattached because the skill is absent from the new generation: #{dropped.join(', ')}"
@@ -239,14 +216,6 @@ module Portfolios
       )
     end
 
-    # The model is asked for exactly one of high/medium/low, and mostly complies.
-    # When it does not, coercing the answer into `low` would have been a claim
-    # about the candidate that nobody made — and passing it through raw raised
-    # RecordInvalid, which failed the ENTIRE portfolio over one malformed field.
-    #
-    # So: trust a valid value, otherwise recompute it from the coverage map using
-    # the same rule the prompt states, and only fall back to nil ("unmeasured")
-    # when there is genuinely nothing to compute from.
     def normalize_confidence(skill_data, discovered:)
       raw = skill_data['confidence'].to_s.strip.downcase
       return raw if VALID_CONFIDENCE.include?(raw)
@@ -277,10 +246,6 @@ module Portfolios
       @coverage_by_label ||= @session.coverage_maps.index_by { |m| m.skill_label.to_s.downcase }
     end
 
-    # Map the model's cited turn numbers onto transcript_turn ids. When the model
-    # omits them (older models, malformed output), fall back to locating each
-    # quote in the transcript by text — so the "jump to transcript" affordance
-    # keeps working rather than silently disappearing.
     def resolve_turn_ids(turn_numbers, quotes)
       cited = Array(turn_numbers).map { |n| turns_by_number[n.to_i]&.id }
 

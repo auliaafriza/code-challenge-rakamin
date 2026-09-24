@@ -3,15 +3,11 @@
 require 'digest'
 
 module Coverage
-  # Builds the coverage map JSON payload for injection into Gemini Live context.
-  # Called synchronously before each AI response — must be < 50ms.
   class MapInjector
     def initialize(session)
       @session = session
     end
 
-    # Returns a fingerprint of coverage state only (excludes time_remaining so
-    # a pure clock tick doesn't trigger a redundant re-injection).
     def coverage_fingerprint
       maps = @session.coverage_maps.order(:id)
       Digest::MD5.hexdigest(maps.map { |m| "#{m.id}:#{m.state}:#{m.probe_count}" }.join(','))
@@ -42,9 +38,6 @@ module Coverage
       "[COVERAGE_MAP]\n#{payload.to_json}\n[/COVERAGE_MAP]"
     end
 
-    # Returns true when every configured skill is covered AND no discovered
-    # skill is still in initiated state. Used by the audio middleware to decide
-    # when it is safe to inject a wrap-up signal and end the session.
     def all_covered?
       maps       = @session.coverage_maps
       configured = maps.configured
@@ -99,8 +92,6 @@ module Coverage
       [(remaining / 60.0).ceil, 0].max
     end
 
-    # Returns the skill_id/label of the highest-priority uncovered skill.
-    # Priority: not_yet > initiated > partial > discovered > covered
     def priority_next(configured_maps)
       priority_order = %w[not_yet initiated partial covered]
 

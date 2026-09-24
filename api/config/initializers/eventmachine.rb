@@ -1,14 +1,16 @@
 # frozen_string_literal: true
 
-# faye-websocket requires EventMachine to be running for its callbacks to fire.
-# Puma does not start EM automatically, so we start it in a background thread.
-unless EventMachine.reactor_running?
+# A forked worker keeps EventMachine's state but not its thread, so
+# `reactor_running?` alone answers true for a reactor that no longer exists.
+reactor_alive = EventMachine.reactor_running? && EventMachine.reactor_thread&.alive?
+
+unless reactor_alive
   ready = Queue.new
 
   Thread.new do
     EventMachine.run do
       ready.push(:ok)
-      Rails.logger.info('[EM] EventMachine reactor started')
+      Rails.logger.info("[EM] EventMachine reactor started (pid #{Process.pid})")
     end
   end
 

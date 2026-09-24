@@ -21,9 +21,6 @@ class FitGapGeneratorWorker
   rescue ActiveRecord::RecordNotFound => e
     Rails.logger.warn("[N13] Record not found: #{e.message}")
   rescue ActiveRecord::RecordNotUnique => e
-    # Another worker won the race and wrote the report first. The answer exists,
-    # so this is a no-op rather than a failure — retrying would only duplicate a
-    # paid model call to produce a row that is already there.
     Rails.logger.info("[N13] Report already written by a concurrent worker: #{e.message}")
   rescue StandardError => e
     Rails.logger.error(
@@ -32,8 +29,6 @@ class FitGapGeneratorWorker
     )
     raise
   ensure
-    # Released on every path, so a crashed run cannot wedge the guard shut and
-    # block every future regeneration until the TTL expires.
     FitGap::JobGuard.release(portfolio_id, vacancy_id)
   end
 end

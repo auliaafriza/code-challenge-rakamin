@@ -49,9 +49,6 @@ export default function PortfolioPage() {
 
     const p = result.portfolio;
     setPortfolio(p);
-    // `pending` and `generating` are both "still working" — the old page treated
-    // them the same but the API only reported one of them as such, so a portfolio
-    // parked in `pending` polled forever with no way out.
     setGenerating(p.generation_status === "pending" || p.generation_status === "generating");
 
     const map: Record<number, AssessorOverride> = {};
@@ -73,8 +70,6 @@ export default function PortfolioPage() {
       setVacancies(vRes.data.vacancies);
       setCandidateName(sRes.data.session.candidate_name ?? null);
     } catch (error) {
-      // Previously `.catch(() => {})`. A 500 produced a page with a heading and
-      // nothing else, and no way to tell that anything had gone wrong.
       setLoadError(error);
     } finally {
       setLoading(false);
@@ -127,8 +122,6 @@ export default function PortfolioPage() {
         selectedVacancy ? Number(selectedVacancy) : undefined
       );
     } catch (error: any) {
-      // The old handler had no catch at all: a rejected export just stopped the
-      // spinner, and the assessor was left staring at an unchanged screen.
       setExportError(error?.message ?? "Ekspor gagal.");
     } finally {
       setExporting(null);

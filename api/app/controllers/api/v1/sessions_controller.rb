@@ -8,6 +8,25 @@ module Api
 
       before_action :set_session, only: %i[show update destroy end_session coverage transcript]
 
+      # GET /api/v1/sessions
+      def all
+        sessions = Session.includes(:assessment).order(created_at: :desc)
+
+        sessions = sessions.where(assessment_id: params[:assessment_id]) if params[:assessment_id].present?
+        sessions = sessions.where(status: params[:status]) if Session::STATUSES.include?(params[:status])
+
+        if (q = params[:q].to_s.strip).present?
+          sessions = sessions.where('candidate_name ILIKE ?', "%#{sanitize_like(q)}%")
+        end
+
+        paged = paginate(sessions)
+
+        json_response(
+          sessions: paged.map { |session| session_row_json(session) },
+          meta:     pagination_meta(paged)
+        )
+      end
+
       # GET /api/v1/assessments/:assessment_id/sessions
       def index
         assessment = Assessment.find(params[:assessment_id])
@@ -22,9 +41,6 @@ module Api
       def create
         assessment = Assessment.find(params[:assessment_id])
 
-        # An expired assessment stops producing new invites. Without this the
-        # date on the form would be decoration: the UI would hide the button and
-        # any direct call to the API would sail straight past it.
         if assessment.expired?
           return json_error(
             "This assessment expired on #{assessment.expires_at.to_date}. " \
@@ -35,9 +51,6 @@ module Api
 
         candidate_name = params.dig(:session, :candidate_name).to_s.strip
 
-        # The name is what ties a recorded interview and an AI-written portfolio
-        # back to a real person. Accepting a blank one produced rows nobody
-        # could match to a candidate afterwards.
         if candidate_name.empty?
           return json_error("Candidate name is required", :unprocessable_entity)
         end
@@ -76,11 +89,6 @@ module Api
         )
       end
 
-      # PATCH /api/v1/sessions/:id
-      #
-      # Only the candidate's name is editable. Everything else on a session —
-      # status, timings, end reason — is a record of what happened and is not
-      # the assessor's to rewrite.
       def update
         name = params.dig(:session, :candidate_name).to_s.strip
 
@@ -93,13 +101,6 @@ module Api
         end
       end
 
-      # DELETE /api/v1/sessions/:id
-      #
-      # Deliberately restricted to invites nobody has used yet. Once a candidate
-      # has spoken, the session is the evidence behind a judgement about that
-      # person; deleting it would remove the basis of a decision that was
-      # already acted on, which is precisely the record UU PDP expects a
-      # controller to be able to produce on request.
       def destroy
         unless @session.pending?
           return json_error(
@@ -169,23 +170,16 @@ module Api
         )
       end
 
-      # POST /sessions/:token/audio_complete  — no JWT, invite token in URL
-      # Called by the frontend when the audio queue drains after a preparing_to_end signal.
-      # Ends the session if all coverage is complete; idempotent if already ended.
       def audio_complete
         session = Session.unscoped.find_by(invite_token: params[:token])
         return json_error("Invalid or expired invite token", :not_found) unless session
 
         return json_response(ended: true, message: "Session already ended") if session.ended?
 
-        # No coverage re-check here. The backend WS already verified all_covered
-        # before sending preparing_to_end. Re-checking here caused false negatives
-        # (timing gap between WS detection and HTTP call) that stalled auto-end.
         Sessions::EndHandler.new(session).call(reason: 'all_covered')
         json_response(ended: true, message: "Session ended")
       end
 
-      # GET /sessions/:token/candidate  — no JWT, invite token in URL
       def candidate_info
         session = Session.unscoped.find_by(invite_token: params[:token])
 
@@ -202,10 +196,6 @@ module Api
           return json_error("Assessment not found", :not_found)
         end
 
-        # A link to a closed process should stop at the door rather than let a
-        # candidate sit through an interview for a role that no longer exists.
-        # A session already in progress is allowed to finish — cutting someone
-        # off mid-answer because a date rolled over would destroy their work.
         if assessment.expired? && session.pending?
           return json_error(
             "This interview link has expired. Please contact the recruiter who invited you.",
@@ -228,6 +218,21 @@ module Api
         @session = Session.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         json_error("Session not found", :not_found)
+      end
+
+      def sanitize_like(value)
+        value.gsub(/[\\%_]/) { |c| "\\#{c}" }
+      end
+
+      def session_row_json(session)
+        session_json(session).merge(
+          assessment: session.assessment && {
+            id:             session.assessment.id,
+            name:           session.assessment.name,
+            time_limit_min: session.assessment.time_limit_min,
+            language:       session.assessment.language || 'en'
+          }
+        )
       end
 
       def session_json(session)

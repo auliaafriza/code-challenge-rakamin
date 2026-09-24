@@ -11,11 +11,6 @@ export interface OverrideInput {
   assessor_notes: string;
 }
 
-/**
- * A 4xx/5xx body that arrives while `responseType: "blob"` is set comes back as
- * a Blob, not JSON — so a plain `catch` sees an unreadable object and the real
- * message ("Portfolio is not ready for export") never reaches the assessor.
- */
 export async function readErrorMessage(error: any, fallback: string): Promise<string> {
   const data = error?.response?.data;
 
@@ -46,12 +41,6 @@ function triggerBrowserDownload(blob: Blob, filename: string) {
 }
 
 export const portfoliosApi = {
-  /**
-   * Create or update an assessor override.
-   *
-   * Named for what it does. It was previously `getOverride` — a GET-sounding
-   * name on a POST that mutates a rating about a person.
-   */
   saveOverride: (portfolioSkillId: number, data: OverrideInput) =>
     api.post<{ override: AssessorOverride }>(`/portfolio_skills/${portfolioSkillId}/override`, {
       override: data,
@@ -69,16 +58,11 @@ export const portfoliosApi = {
   },
 
   regenerateFitGap: (portfolioId: number, vacancyId: number) =>
-    api.post<{ status: string; message: string }>(
+    api.post<{ report?: unknown; status?: string; message?: string }>(
       `/portfolios/${portfolioId}/regenerate_fitgap`,
       { vacancy_id: vacancyId }
     ),
 
-  /**
-   * Download an export, or throw an Error whose message is the server's own.
-   * Never fails silently: the previous implementation had no `catch` at all, so
-   * a rejected export just stopped the spinner and left the screen unchanged.
-   */
   downloadExport: async (
     portfolioId: number,
     format: "pdf" | "json",

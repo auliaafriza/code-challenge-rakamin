@@ -14,24 +14,6 @@ interface ComparisonTableProps {
   comparisons: SkillComparison[];
 }
 
-/**
- * The decision surface: the table a hiring manager reads to decide whether a
- * person clears the bar for a role.
- *
- * Three things this table must never do again, each of which it used to do:
- *
- *   1. Render an empty Required cell. It read `required_level` while the API
- *      sent `expected_level`, so every row showed a candidate level with no bar
- *      to compare it against — indistinguishable from a design choice.
- *   2. Claim a provenance marker it never showed. The legend promised
- *      "human override applied" on every report while the flag was dropped
- *      server-side, so an assessor's professional correction was invisible and
- *      the model's guess and the human's judgement looked identical.
- *   3. Drop confidence. "L4 from one probe" and "L4 from four deep probes"
- *      rendered pixel-for-pixel the same, so the only caveat that matters at the
- *      moment of decision was discarded exactly at the moment of decision.
- */
-
 function formatDelta(delta: number | null): string {
   // `delta` can legitimately be 0. A truthiness check silently drops it.
   if (delta === null || delta === 0) return "";
@@ -64,7 +46,6 @@ function formatWhen(iso: string | null): string | null {
   return date.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Who produced this rating, and — when a human corrected it — what they changed. */
 function Provenance({ comparison }: { comparison: SkillComparison }) {
   if (comparison.candidate_level === null) {
     return <span className="text-xs text-muted-foreground">Tidak diprobe</span>;
@@ -79,7 +60,7 @@ function Provenance({ comparison }: { comparison: SkillComparison }) {
 
   return (
     <span
-      className="inline-flex flex-wrap items-center gap-1 text-xs text-teal-800"
+      className="inline-flex flex-wrap items-center gap-1 text-xs text-primary"
       title={`Diubah oleh assessor (override) — ${who}${when ? ` pada ${when}` : ""}`}
     >
       <span aria-hidden="true">✎</span>
@@ -99,8 +80,6 @@ export default function ComparisonTable({ comparisons }: ComparisonTableProps) {
 
   const hasOverride = comparisons.some((c) => c.is_override);
 
-  // A negative conclusion drawn from thin evidence is the most consequential
-  // thing this report can get wrong about a person. Name it explicitly.
   const thinGaps = comparisons.filter(
     (c) => c.result === "gap" && (c.confidence === "low" || c.confidence === "unknown")
   );
@@ -190,8 +169,6 @@ export default function ComparisonTable({ comparisons }: ComparisonTableProps) {
         {gapCount > 0 && <span>Gap: {gapCount}</span>}
         {exceedCount > 0 && <span>Exceeds: {exceedCount}</span>}
         {notAssessedCount > 0 && <span>Belum dinilai: {notAssessedCount}</span>}
-        {/* Shown only when the marker is actually present — a legend that
-            describes something absent is a claim the report cannot back. */}
         {hasOverride && <span className="ml-auto">✎ = penilaian dikoreksi assessor</span>}
       </div>
     </div>

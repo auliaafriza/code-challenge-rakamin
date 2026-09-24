@@ -13,20 +13,6 @@ interface LevelRadioProps {
   label?: string;
 }
 
-/**
- * Three things this component was getting wrong, all invisible until you look.
- *
- * 1. Every instance rendered the same five DOM ids — `level-1` … `level-5`. A
- *    form with three skills therefore had three elements called `level-3`, and
- *    `<label for="level-3">` binds to the *first* one in the document. Clicking
- *    the L3 label on the third skill card moved the radio on the first. `useId`
- *    scopes the ids per instance.
- * 2. The levels came from a bare `[1,2,3,4,5]` literal, which indexes
- *    `Record<Level, string>` as `any` — the label maps and the iteration order
- *    could drift apart with nothing to catch it. `LEVELS` is the single source.
- * 3. Each option's accessible name was "L3" and nothing else. The chip stays
- *    short for density, but the announced name now carries the meaning.
- */
 export default function LevelRadio({ value, onChange, disabled, className, label }: LevelRadioProps) {
   const groupId = useId();
 

@@ -2,9 +2,6 @@
 
 require 'rails_helper'
 
-# The payload this engine emits IS the hiring report. Everything the UI can say
-# about a candidate is bounded by what shows up in this hash, so the shape is
-# tested directly rather than through the screen that renders it.
 RSpec.describe FitGap::Engine do
   let(:gemini) do
     instance_double('Gemini::HttpClient').tap do |client|
@@ -52,8 +49,6 @@ RSpec.describe FitGap::Engine do
 
       comparison = comparison_for('System Design')
 
-      # `required_level` is canonical; `expected_level` stays as a deprecated
-      # alias so an older client is not broken by the rename.
       expect(comparison['required_level']).to eq(3)
       expect(comparison['expected_level']).to eq(3)
     end
@@ -95,8 +90,6 @@ RSpec.describe FitGap::Engine do
       comparison = comparison_for('Cloud Infrastructure')
 
       expect(comparison['confidence']).to eq('low')
-      # The number behind the caveat, so a reader can check it rather than
-      # take it on faith.
       expect(comparison['probe_count']).to eq(1)
     end
 
@@ -124,8 +117,6 @@ RSpec.describe FitGap::Engine do
     end
   end
 
-  # The organizations table lives in the public schema and is populated by raw
-  # SQL in db/seeds.rb, so specs create it the same way.
   def seed_organization!(scheme: 'spec-corp')
     existing = Organization.find_by(scheme: scheme)
     return existing if existing

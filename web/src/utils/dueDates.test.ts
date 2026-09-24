@@ -7,15 +7,6 @@ import {
   LANGUAGE_LABELS,
 } from "./constants";
 
-/**
- * Due dates are the one place in this change set where a plausible-looking
- * implementation is quietly wrong. `new Date(iso).toISOString().slice(0, 10)`
- * is the obvious way to fill a <input type="date">, and it is off by a day for
- * every user east of UTC — which is every user of this product, since WIB is
- * UTC+7. An assessor in Jakarta setting "31 August" would reopen the form and
- * see "30 August", and saving it again would walk the date backwards one day
- * per edit.
- */
 describe("due date conversion", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -28,8 +19,6 @@ describe("due date conversion", () => {
   });
 
   it("stores the end of the chosen day, not the start", () => {
-    // A due date of "31 August" means the invite works all through the 31st.
-    // Storing midnight would close it a full day early.
     const iso = fromDateInputValue("2026-08-31")!;
     const d = new Date(iso);
     expect(d.getHours()).toBe(23);
@@ -45,8 +34,6 @@ describe("due date conversion", () => {
   });
 
   it("never reports a missing due date as expired", () => {
-    // The dangerous default: an assessment with no expiry must stay usable
-    // forever, not read as expired the moment the column is null.
     expect(isExpired(null)).toBe(false);
     expect(isExpired(undefined)).toBe(false);
     expect(isExpired("")).toBe(false);
@@ -70,9 +57,6 @@ describe("language display", () => {
   });
 
   it("falls back to the raw code rather than rendering nothing", () => {
-    // If the backend ever adds a language the frontend has not shipped a label
-    // for, the assessor should see "ja" — not an empty space where the setting
-    // that controls the whole interview is supposed to be.
     expect(formatLanguage("ja")).toBe("ja");
   });
 

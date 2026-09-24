@@ -1,5 +1,3 @@
-// Internet Speed Test Utilities — standalone, no backend dependency
-
 export interface InternetSpeedResult {
     download: number;
     upload: number;

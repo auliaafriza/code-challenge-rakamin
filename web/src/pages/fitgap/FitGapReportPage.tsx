@@ -45,12 +45,6 @@ export default function FitGapReportPage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
 
-  /**
-   * Generation is enqueued server-side when an override is saved. Asking for it
-   * again on the resulting 404 raced a second worker against the first, which
-   * collided on the unique (portfolio_id, vacancy_id) index and paid for the
-   * same Gemini call twice. Request generation at most once per mount.
-   */
   const requestedRef = useRef(false);
 
   const fetchReport = useCallback(
@@ -66,7 +60,14 @@ export default function FitGapReportPage() {
           if (!requestedRef.current) {
             requestedRef.current = true;
             try {
-              await portfoliosApi.triggerFitGap(portfolioId, Number(vacancyId));
+              const triggered = await portfoliosApi.triggerFitGap(portfolioId, Number(vacancyId));
+              // Server kini bisa membangun laporannya langsung saat antrean
+              // tidak tersedia. Kalau ia sudah mengirim hasilnya, memasangnya
+              // sekarang menghemat satu putaran polling penuh.
+              if (triggered.data?.report) {
+                setReport(triggered.data.report as FitGapReport);
+                setGenerating(false);
+              }
             } catch (triggerError) {
               setGenerating(false);
               setError(triggerError);
@@ -74,8 +75,6 @@ export default function FitGapReportPage() {
           }
           return;
         }
-        // Anything that is not "not built yet" is a real failure. The old handler
-        // swallowed it and left a blank page behind a heading.
         setGenerating(false);
         setError(e);
       }
@@ -117,10 +116,15 @@ export default function FitGapReportPage() {
     setRegenerating(true);
     setError(null);
     try {
-      await portfoliosApi.regenerateFitGap(portfolio.id, Number(vacancyId));
+      const res = await portfoliosApi.regenerateFitGap(portfolio.id, Number(vacancyId));
       requestedRef.current = true;
-      setReport(null);
-      setGenerating(true);
+      if (res.data?.report) {
+        setReport(res.data.report as FitGapReport);
+        setGenerating(false);
+      } else {
+        setReport(null);
+        setGenerating(true);
+      }
     } catch (e) {
       setError(e);
     } finally {
@@ -157,11 +161,6 @@ export default function FitGapReportPage() {
 
   const generatedAt = formatWhen(report?.generated_at);
 
-  /**
-   * An override saved after this report was computed makes the numbers on screen
-   * older than the assessor's own decision. Saying so is the difference between
-   * a stale report and a misleading one.
-   */
   const staleAgainstOverrides =
     report != null &&
     report.generated_at != null &&
@@ -319,8 +318,6 @@ export default function FitGapReportPage() {
                     .map((s) => (
                       <div key={s.id} className="flex flex-wrap items-center gap-2 text-sm">
                         <span className="font-medium">{s.skill_label}</span>
-                        {/* Formatted, not raw: this rendered a bare "3" while the
-                            rest of the product wrote "L3". */}
                         <span className="tabular-nums">{formatLevel(s.ai_level)}</span>
                         <ConfidenceIndicator
                           confidence={s.ai_confidence}

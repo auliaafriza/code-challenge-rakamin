@@ -1,33 +1,6 @@
 # frozen_string_literal: true
 
-# Seeds for local development and testing.
-# Safe to re-run — all operations are idempotent.
-#
-# Usage:
-#   bundle exec rails db:seed
-#
-# After seeding, use the Rails console to mint a JWT for testing:
-#   bundle exec rails console
-#   > token = JsonWebToken.encode({ user_id: 1, role: 'admin', scheme: 'test-corp' })
-#   > puts token
-
 puts "== Seeding AI Interview development data =="
-
-# ── Organization ─────────────────────────────────────────────────────────────
-#
-# We write directly to public.organizations (shared with rakamin-api).
-# We use raw SQL so we don't have to mirror all of rakamin-api's validations
-# and callbacks in our read-only Organization model.
-#
-# Columns required by the rakamin-api schema:
-#   name        — display name
-#   scheme      — used as the Apartment schema name AND as the JWT `scheme` claim
-#   identifier  — URL-safe slug (lowercase, min 3 chars)
-#   host        — primary host for HostService resolution
-#   alias_hosts — additional hosts (postgres array)
-#   config      — JSONB config blob (Configurable concern)
-#
-# id = 0 is reserved in rakamin-api as the "default" org — do not use it here.
 
 TEST_ORG = {
   name:       "Test Corp",

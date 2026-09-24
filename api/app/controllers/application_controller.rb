@@ -6,11 +6,6 @@ class ApplicationController < ActionController::API
 
   before_action :require_tenant!
 
-  # Declarative auth helper — mirrors rakamin-api's authorize_auth_token! pattern.
-  # Usage:
-  #   authorize_auth_token! :admin
-  #   authorize_auth_token! :assessor      # allows admin or assessor
-  #   authorize_auth_token! :any           # any authenticated user
   def self.authorize_auth_token!(*roles, **options)
     before_action(options) { authenticate_with_roles!(roles) }
   end
@@ -19,8 +14,6 @@ class ApplicationController < ActionController::API
 
   # ── Tenant ──────────────────────────────────────────────────────────────────
 
-  # Raises TenantNotFound if tenant resolution failed (i.e. bad/missing scheme).
-  # Override in controllers that don't require a tenant (e.g. health check).
   def require_tenant!
     return if tenant_resolved?
 

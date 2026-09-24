@@ -1,6 +1,17 @@
 import api from "./api";
 import { parseContract, portfolioResponseSchema, type Portfolio } from "./schemas";
-import type { Session, CoverageMap, TranscriptTurn, CandidateInfo } from "@/types";
+import type { Session, CoverageMap, TranscriptTurn, CandidateInfo, PaginationMeta } from "@/types";
+
+export interface SessionListParams {
+  page?: number;
+  /** Dibatasi server ke maksimum 100. */
+  per_page?: number;
+  /** Saring ke satu assessment. */
+  assessment_id?: number | "";
+  status?: "" | "pending" | "active" | "ended";
+  /** Cari berdasarkan nama kandidat. */
+  q?: string;
+}
 
 /** What the portfolio endpoint actually means, as one closed set of states. */
 export type PortfolioFetchResult =
@@ -8,6 +19,9 @@ export type PortfolioFetchResult =
   | { state: "ready"; portfolio: Portfolio };
 
 export const sessionsApi = {
+  list: (params: SessionListParams = {}) =>
+    api.get<{ sessions: Session[]; meta: PaginationMeta }>("/sessions", { params }),
+
   get: (id: number) =>
     api.get<{ session: Session; assessment: { id: number; name: string; time_limit_min: number } }>(
       `/sessions/${id}`
@@ -25,14 +39,6 @@ export const sessionsApi = {
       params: fromTurn ? { from_turn: fromTurn } : undefined,
     }),
 
-  /**
-   * Fetch the portfolio, validated against the contract.
-   *
-   * The endpoint answers either `{ portfolio }` or a bare `{ status }`, and the
-   * caller previously had to guess which — reading `generation_status` out of an
-   * `any` and treating a missing portfolio as "still generating". Collapsing it
-   * into one closed result type means the page cannot forget a state.
-   */
   fetchPortfolio: async (id: number): Promise<PortfolioFetchResult> => {
     const res = await api.get(`/sessions/${id}/portfolio`);
     const parsed = parseContract(portfolioResponseSchema, res.data, "portfolio");
@@ -44,14 +50,6 @@ export const sessionsApi = {
   regeneratePortfolio: (id: number) =>
     api.post<{ message: string }>(`/sessions/${id}/portfolio/regenerate`),
 
-  /**
-   * Rename a candidate on an existing session.
-   *
-   * The name was captured once, in an optional field, at the moment the invite
-   * link was created — and then frozen. A typo in a candidate's name is not a
-   * cosmetic problem in a product that produces a hiring judgement about that
-   * person: it is the label on the evidence.
-   */
   updateCandidate: (id: number, candidateName: string) =>
     api.patch<{ session: Session }>(`/sessions/${id}`, {
       session: { candidate_name: candidateName },

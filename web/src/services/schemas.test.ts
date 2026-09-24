@@ -8,12 +8,6 @@ import {
   skillComparisonSchema,
 } from "./schemas";
 
-/**
- * The boundary is the only place this app is allowed to be surprised by the
- * server. These tests pin the two properties that make it useful: it absorbs
- * changes it can absorb, and it fails loudly at the ones it cannot.
- */
-
 beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -36,9 +30,6 @@ const report = (comparisons: unknown[]) => ({
 
 describe("contract boundary", () => {
   it("maps the API's expected_level onto the name the UI reads", () => {
-    // This single mapping is the whole of P0-1. Locking it here means the next
-    // rename fails in a test instead of blanking a column in front of a hiring
-    // manager.
     const parsed = skillComparisonSchema.parse({
       skill_label: "System Design",
       candidate_level: 4,
@@ -142,8 +133,6 @@ describe("contract boundary", () => {
 
     expect("portfolio" in ready).toBe(true);
     if ("portfolio" in ready) {
-      // "L3" and "High" are normalised at the boundary so every component
-      // downstream sees exactly one shape.
       expect(ready.portfolio.skills[0].ai_level).toBe(3);
       expect(ready.portfolio.skills[0].ai_confidence).toBe("high");
       expect(ready.portfolio.skills[0].evidence).toEqual([]);

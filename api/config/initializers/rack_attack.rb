@@ -1,10 +1,15 @@
 # frozen_string_literal: true
 
 class Rack::Attack
-  # Use Redis for distributed throttle state across pods.
-  Rack::Attack.cache.store = ActiveSupport::Cache::RedisCacheStore.new(
-    url: ENV.fetch('REDIS_URL', 'redis://localhost:6379/1')
-  )
+  # Redis keeps throttle state shared across pods. In development it would only
+  # add one more service that has to be running before the API answers at all,
+  # and per-process counters are enough for a single machine.
+  Rack::Attack.cache.store =
+    if Rails.env.development? || Rails.env.test?
+      ActiveSupport::Cache::MemoryStore.new
+    else
+      ActiveSupport::Cache::RedisCacheStore.new(url: ENV.fetch('REDIS_URL', 'redis://localhost:6379/1'))
+    end
 
   # Throttle login attempts: 5 per minute per IP.
   throttle('auth/login', limit: 5, period: 1.minute) do |req|

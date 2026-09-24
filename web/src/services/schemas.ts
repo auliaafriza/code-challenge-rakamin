@@ -1,29 +1,6 @@
 import { z } from "zod";
 import { parseLevel, parseConfidence, type Confidence, type Level } from "@/utils/constants";
 
-/**
- * The contract between this app and the API, declared once, enforced at runtime.
- *
- * Why this file exists
- * -------------------
- * `src/types/index.ts` was hand-written and never confronted with a real
- * response. It declared `required_level`; the API sends `expected_level`. Nothing
- * failed — TypeScript is erased at runtime, `LEVEL_LABELS[undefined]` is
- * `undefined`, and React renders `undefined` as an empty string. So the Required
- * column of the fit/gap report — the number a hiring manager compares a person
- * against — rendered blank on every row, and looked like a design choice.
- *
- * A hand-written type cannot catch that. A runtime schema can. Every response we
- * depend on is parsed here; anything that does not match raises a `ContractError`
- * the UI surfaces explicitly, instead of degrading into blank cells.
- *
- * Two properties this file must keep:
- *   1. Forward-compatible — unknown fields are stripped, never rejected. The API
- *      can add fields without breaking this client.
- *   2. Backward-compatible — where the API is mid-rename, we accept both names
- *      and normalise here, so exactly one shape reaches the components.
- */
-
 // ── Errors ───────────────────────────────────────────────────────────────────
 
 export interface ContractIssue {
@@ -48,12 +25,6 @@ export function isContractError(error: unknown): error is ContractError {
   return error instanceof ContractError;
 }
 
-/**
- * Parse `data` against `schema`, or throw a `ContractError`.
- *
- * `context` names the call site ("fit/gap report") so the UI can tell the user
- * which screen has bad data, and the log can tell an engineer which endpoint.
- */
 export function parseContract<T>(schema: z.ZodType<T>, data: unknown, context: string): T {
   const result = schema.safeParse(data);
   if (result.success) return result.data;
@@ -63,8 +34,6 @@ export function parseContract<T>(schema: z.ZodType<T>, data: unknown, context: s
     message: issue.message,
   }));
 
-  // Surface to observability before throwing — a contract drift in production is
-  // an engineering signal, not just a user-facing error.
   if (typeof console !== "undefined") {
     console.error(`[contract] ${context}`, issues);
   }
@@ -141,14 +110,6 @@ export const portfolioResponseSchema = z.union([
 
 export const fitResultSchema = z.enum(["match", "gap", "exceed", "not_assessed"]);
 
-/**
- * One row of the decision surface.
- *
- * `required_level` accepts the API's legacy `expected_level` and normalises it.
- * That rename is the whole of P0-1: keeping the adapter here means the component
- * reads exactly one name, and the test below locks the mapping so the next
- * rename fails loudly instead of blanking a column.
- */
 export const skillComparisonSchema = z
   .object({
     skill_label: z.string(),
@@ -175,7 +136,6 @@ export const skillComparisonSchema = z
       /** The model's own rating, before any human correction. */
       ai_level: c.ai_level,
       result: c.result,
-      // `delta` may legitimately be 0 — never coerce it through a truthiness check.
       delta: c.delta ?? null,
       confidence: c.confidence,
       probe_count: c.probe_count ?? null,
@@ -203,8 +163,6 @@ export const fitGapReportSchema = z.object({
 });
 
 export const fitGapResponseSchema = z.object({ report: fitGapReportSchema });
-
-// ── Inferred types — the single source of truth for the components ───────────
 
 export type PortfolioSkill = z.infer<typeof portfolioSkillSchema>;
 export type AssessorOverride = z.infer<typeof assessorOverrideSchema>;

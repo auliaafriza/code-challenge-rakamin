@@ -1,17 +1,5 @@
 # frozen_string_literal: true
 
-# Builds a complete, deterministic assessment → portfolio → fit/gap chain without
-# calling Gemini at all.
-#
-# Waiting on a live model to reproduce an edge case is slow, costs money, and is
-# not reproducible — and the cases that matter most here (a null confidence, a
-# level outside the scale, a skill nobody probed) are exactly the ones a healthy
-# model will not produce on demand. Every acceptance criterion in the report has
-# a row in this seed.
-#
-#   bundle exec rails demo:seed
-#   bundle exec rails demo:reset     # tear down and rebuild
-#
 namespace :demo do
   SCHEME = ENV.fetch('DEMO_SCHEME', 'test-corp')
   ASSESSMENT_NAME = 'DEMO — Frontend Engineer'
@@ -83,6 +71,81 @@ namespace :demo do
     puts '    · skill tak pernah diprobe → harus "Belum dinilai", bukan L1'
     puts '    · ringkasan 2.000 karakter → layout kartu harus tetap utuh'
     puts '    · label tanpa spasi        → tabel tidak boleh melebar'
+  ensure
+    RequestStore.clear!
+  end
+
+  DEMO_STAFF = [
+    { email: 'rina.recruiter@rakamin.test',  role: 'recruiter',      assessments: 3, vacancies: 2 },
+    { email: 'bayu.hiring@rakamin.test',     role: 'hiring_manager', assessments: 1, vacancies: 2 },
+    { email: 'sari.assessor@rakamin.test',   role: 'assessor',       assessments: 2, vacancies: 0 }
+  ].freeze
+
+  DEMO_DASHBOARD_PREFIX = 'DEMO DASH —'
+
+  desc 'Isi dashboard dengan beberapa staf, lowongan, dan assessment'
+  task dashboard: :environment do
+    org = Organization.find_by(scheme: SCHEME)
+    abort "Organization '#{SCHEME}' not found — run `rails db:seed` first." if org.nil?
+
+    RequestStore.store[:organization] = org
+    RequestStore.store[:tenant_id]    = org.id
+
+    puts "== Demo dashboard (tenant #{org.scheme}) =="
+
+    DEMO_STAFF.each do |spec|
+      user = User.find_by(email: spec[:email]) ||
+             User.create!(email: spec[:email], password: 'password123', role: spec[:role])
+      user.update!(role: spec[:role]) unless user.role == spec[:role]
+
+      spec[:assessments].times do |i|
+        name = "#{DEMO_DASHBOARD_PREFIX} #{user.display_name} Assessment #{i + 1}"
+        Assessment.find_or_create_by!(name: name) do |a|
+          a.tenant_id      = org.id
+          a.created_by     = user.id
+          a.time_limit_min = [30, 45, 60].sample
+          a.language       = 'id'
+          a.expires_at = i.zero? ? 3.days.ago : 30.days.from_now
+        end
+      end
+
+      spec[:vacancies].times do |i|
+        title = "#{DEMO_DASHBOARD_PREFIX} #{user.display_name} Vacancy #{i + 1}"
+        Vacancy.find_or_create_by!(role_title: title) do |v|
+          v.tenant_id  = org.id
+          v.created_by = user.id
+          v.culture_dimensions      = 'Kolaboratif, terbiasa menulis keputusan.'
+          v.competency_expectations = 'Mampu bekerja mandiri pada scope yang jelas.'
+          v.closes_at = i.zero? ? 4.days.from_now : nil
+        end
+      end
+
+      puts "  #{user.display_name.ljust(12)} #{user.role.ljust(15)} #{spec[:assessments]} assessment, #{spec[:vacancies]} lowongan"
+    end
+
+    puts ''
+    puts '  Semua akun memakai password: password123'
+    puts '  Buka /dashboard setelah login.'
+  ensure
+    RequestStore.clear!
+  end
+
+  desc 'Hapus data yang dibuat demo:dashboard'
+  task dashboard_reset: :environment do
+    org = Organization.find_by(scheme: SCHEME)
+    abort "Organization '#{SCHEME}' not found." if org.nil?
+
+    RequestStore.store[:organization] = org
+    RequestStore.store[:tenant_id]    = org.id
+
+    Assessment.where('name LIKE ?', "#{DEMO_DASHBOARD_PREFIX}%").find_each do |assessment|
+      assessment.sessions.find_each(&:destroy)
+      assessment.destroy
+    end
+    Vacancy.where('role_title LIKE ?', "#{DEMO_DASHBOARD_PREFIX}%").find_each(&:destroy)
+    User.where(email: DEMO_STAFF.map { |s| s[:email] }).find_each(&:destroy)
+
+    puts 'Data demo dashboard dihapus.'
   ensure
     RequestStore.clear!
   end
@@ -166,7 +229,6 @@ namespace :demo do
     portfolio.portfolio_skills.destroy_all
     quote_turn = ->(fragment) { turns.find { |t| t.text.include?(fragment) }&.id }
 
-    # 1 — happy path: deep coverage, high confidence, traceable evidence
     portfolio.portfolio_skills.create!(
       skill_label:        'React / Frontend Development',
       is_discovered:      false,
@@ -181,7 +243,6 @@ namespace :demo do
       competency_summary: LONG_SUMMARY
     )
 
-    # 2 — the override case: model said L2, an assessor disagreed
     portfolio.portfolio_skills.create!(
       skill_label:        'Testing & Quality Assurance',
       is_discovered:      false,
@@ -192,7 +253,6 @@ namespace :demo do
       competency_summary: 'Menulis test berdasarkan risiko, bukan target coverage. Belum terlihat menyentuh test integrasi.'
     )
 
-    # 3 — a gap standing on a single probe: the report must flag it as provisional
     portfolio.portfolio_skills.create!(
       skill_label:        'Security Engineering',
       is_discovered:      false,
@@ -203,7 +263,6 @@ namespace :demo do
       competency_summary: 'Baru satu probe. Menyebut pemisahan pesan error, tapi belum terlihat pemodelan ancaman.'
     )
 
-    # 4 — confidence genuinely unreported: must read "unmeasured", never "low"
     portfolio.portfolio_skills.create!(
       skill_label:        'Accessibility Engineering',
       is_discovered:      true,
@@ -214,7 +273,6 @@ namespace :demo do
       competency_summary: 'Jujur soal keterbatasannya. Mengikuti pola design system tanpa pengujian mandiri.'
     )
 
-    # 5 — a label with no spaces at all: the table must wrap, not stretch
     portfolio.portfolio_skills.create!(
       skill_label:        'Micro-frontend-module-federation-and-runtime-composition',
       is_discovered:      true,
@@ -264,8 +322,6 @@ namespace :demo do
     vacancy
   end
 
-  # A stub standing in for Gemini: deterministic, free, and offline. The skill
-  # comparison itself is rule-based, so this exercises the real engine path.
   class StubNarrator
     def generate_content(_prompt, **_opts)
       {

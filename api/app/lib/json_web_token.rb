@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# Identical to rakamin-api's JsonWebToken.
-# Uses the same SECRET_KEY_BASE so tokens issued by rakamin are accepted here.
 class JsonWebToken
   TOKEN_EXPIRATION_TIME = ENV['TOKEN_EXPIRATION_TIME'].presence
 

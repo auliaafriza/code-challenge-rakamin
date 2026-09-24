@@ -34,10 +34,6 @@ describe("usePolling — waiting must have an end", () => {
   });
 
   it("gives up after the timeout instead of spinning forever", () => {
-    // A portfolio stuck in `pending` used to poll every five seconds with no end
-    // condition, under a message reading "This takes about 2 minutes", while the
-    // only recovery button was rendered solely for the `failed` state. There was
-    // no way out of the product.
     const fn = vi.fn();
     const onTimeout = vi.fn();
 

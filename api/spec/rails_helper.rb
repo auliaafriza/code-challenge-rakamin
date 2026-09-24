@@ -8,9 +8,6 @@ abort('The Rails environment is running in production mode!') if Rails.env.produ
 
 require 'rspec/rails'
 
-# The API is multi-tenant through RequestStore. Specs must run inside a tenant,
-# or `TenantScoped`'s default_scope silently degrades to `all` and every
-# cross-tenant assertion in this suite passes for the wrong reason.
 module TenantSpecHelper
   def with_tenant(organization)
     RequestStore.store[:organization] = organization

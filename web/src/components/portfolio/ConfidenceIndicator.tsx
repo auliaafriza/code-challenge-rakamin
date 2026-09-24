@@ -15,15 +15,6 @@ interface ConfidenceIndicatorProps {
   className?: string;
 }
 
-/**
- * How sure the model is about a rating — and, when it is not sure, why.
- *
- * The previous implementation funnelled every unrecognised value into `LOW` and
- * painted it destructive red. A missing field therefore read as a finding about
- * the candidate: "we assessed this and the evidence was weak", when the truth
- * was "we never measured it". `unknown` is now its own state, visually neutral,
- * so absence is never mistaken for a negative result about a person.
- */
 export default function ConfidenceIndicator({
   confidence,
   probeCount,

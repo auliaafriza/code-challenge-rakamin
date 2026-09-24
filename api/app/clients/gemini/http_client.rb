@@ -24,8 +24,6 @@ module Gemini
       @connection = build_connection
     end
 
-    # Generates content using Gemini REST API.
-    # Returns parsed JSON response body.
     def generate_content(prompt, temperature: 0.2)
       response = @connection.post(generate_url, request_body(prompt, temperature), request_headers)
       parse_response(response)

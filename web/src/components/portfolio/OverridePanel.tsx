@@ -34,16 +34,11 @@ export default function OverridePanel({ skill, existingOverride, onSaved }: Over
   const savedLevel = existingOverride?.override_level ?? null;
 
   const [open, setOpen] = useState(false);
-  // Form state, not a claim about the candidate: when the model produced no
-  // usable rating we start in the middle of the scale rather than at L1.
   const [draftLevel, setDraftLevel] = useState<Level>(savedLevel ?? aiLevel ?? 3);
   const [draftNotes, setDraftNotes] = useState(existingOverride?.assessor_notes ?? "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Derived state must follow the source of truth. Previously the initial value
-  // was captured once at mount, so a refetch (or another tab's save) left the
-  // panel showing a rating that no longer existed.
   useEffect(() => {
     setDraftLevel(savedLevel ?? aiLevel ?? 3);
     setDraftNotes(existingOverride?.assessor_notes ?? "");
@@ -52,9 +47,6 @@ export default function OverridePanel({ skill, existingOverride, onSaved }: Over
   const hasOverride = !!existingOverride;
 
   const discardDraft = () => {
-    // Cancel means cancel. The old panel kept the abandoned edit in state, so
-    // reopening showed a rating the assessor had explicitly backed out of — and
-    // it looked saved.
     setDraftLevel(savedLevel ?? aiLevel ?? 3);
     setDraftNotes(existingOverride?.assessor_notes ?? "");
     setSaveError(null);
@@ -90,9 +82,8 @@ export default function OverridePanel({ skill, existingOverride, onSaved }: Over
                 →
               </span>
               <LevelBadge level={existingOverride!.override_level} size="sm" />
-              <span className="text-xs font-medium text-teal-700">Dikoreksi assessor</span>
+              <span className="text-xs font-medium text-primary">Dikoreksi assessor</span>
             </div>
-            {/* Accountability is only real if it is visible: who decided, and when. */}
             <p className="text-[11px] text-muted-foreground">
               {existingOverride!.overridden_by_email ?? "assessor (tidak diketahui)"}
               {formatWhen(existingOverride!.overridden_at)

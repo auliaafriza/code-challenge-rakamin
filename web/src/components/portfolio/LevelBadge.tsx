@@ -14,13 +14,6 @@ interface LevelBadgeProps {
   className?: string;
 }
 
-/**
- * A rating on the L1–L5 scale, or an explicit "not rated".
- *
- * An unparseable level renders as an em dash with an accessible label, never as
- * L1 and never as an empty badge. Colour is redundant with the text label so the
- * level survives greyscale printing and colour-blind vision (WCAG 1.4.1).
- */
 export default function LevelBadge({ level, size = "md", className }: LevelBadgeProps) {
   const parsed = parseLevel(level);
 

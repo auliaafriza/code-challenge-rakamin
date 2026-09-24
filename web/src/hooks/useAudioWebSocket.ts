@@ -49,8 +49,6 @@ export function useAudioWebSocket({
       if (token) ws.send(JSON.stringify({ type: "auth", token }));
     };
 
-    // Only signal AI speaking once per turn (first binary chunk).
-    // Reset when speaker_changed:candidate arrives.
     let aiSpeakingSignalled = false;
 
     ws.onmessage = (event) => {
@@ -74,9 +72,6 @@ export function useAudioWebSocket({
               }
               break;
             case "speaker_changed":
-              // Backend sends speaker_changed:candidate 800ms after AI finishes
-              // (GATE_OPEN_DELAY) — audio playback has drained by then.
-              // No async wait needed on the frontend.
               if (msg.speaker === "candidate") {
                 aiSpeakingSignalled = false;
                 onSpeakerChange("candidate");
@@ -107,7 +102,6 @@ export function useAudioWebSocket({
               break;
           }
         } catch {
-          // Non-JSON text frame — ignore
         }
       }
     };
@@ -118,7 +112,7 @@ export function useAudioWebSocket({
 
     ws.onclose = () => {
       setConnectionState("disconnected");
-      if (sessionEndedRef.current) return; // session ended cleanly — do not reconnect
+      if (sessionEndedRef.current) return;
       const attempt = reconnectAttemptsRef.current;
       if (attempt < RECONNECT_DELAYS.length) {
         onStateChange("reconnecting");

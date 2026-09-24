@@ -6,24 +6,25 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       # Auth
-      post 'auth/login', to: 'authentication#authenticate'
+      post 'auth/login',  to: 'authentication#authenticate'
+      post 'auth/signup', to: 'authentication#signup'
       # Health check
       get  'health', to: proc { [200, {}, [{ status: 'ok' }.to_json]] }
 
-      # Upload speed test — accepts any payload, discards it, returns bytes received
       post 'speed_test', to: proc { |env|
         bytes = env['CONTENT_LENGTH'].to_i
         [200, { 'Content-Type' => 'application/json' }, [{ received_bytes: bytes }.to_json]]
       }
+
+      resources :users, only: %i[index]
 
       # Assessments
       resources :assessments do
         resources :sessions, only: %i[index create]
       end
 
-      # Sessions
-      # `update` exists only to rename a candidate; `destroy` only to discard an
-      # invite that was never used. Both restrictions live in the controller.
+      get 'sessions', to: 'sessions#all'
+
       resources :sessions, only: %i[show update destroy] do
         member do
           post :end_session
@@ -34,7 +35,6 @@ Rails.application.routes.draw do
         end
       end
 
-      # Candidate-facing (no JWT — invite token only)
       get  'sessions/:token/candidate',      to: 'sessions#candidate_info'
       post 'sessions/:token/audio_complete', to: 'sessions#audio_complete'
 
@@ -52,7 +52,6 @@ Rails.application.routes.draw do
       # Vacancies
       resources :vacancies
 
-      # Portfolios — fit/gap and export
       resources :portfolios, only: [] do
         member do
           post :fitgap

@@ -2,17 +2,6 @@ import type { FieldError } from "react-hook-form";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
-/**
- * Required marks and validation messages that are actually rendered.
- *
- * Every form in this app destructured `formState.errors` and then displayed it
- * in exactly one place across the whole codebase. Everywhere else a field was
- * registered `required: true`, react-hook-form silently blocked the submit, the
- * button re-enabled, and nothing explained what was wrong — most painfully on
- * the custom skill form, where five long behavioural anchors are typed by hand
- * and one blank field stops the save with no indication which.
- */
-
 /** The asterisk, with a screen-reader-visible word rather than punctuation alone. */
 export function RequiredMark() {
   return (

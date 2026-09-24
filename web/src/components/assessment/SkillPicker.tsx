@@ -10,7 +10,6 @@ import { Search, Loader2 } from "lucide-react";
 import { skillTaxonomiesApi } from "@/services/skillTaxonomies";
 import type { AssessmentSkill, SkillTaxonomy } from "@/types";
 
-
 interface SkillPickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

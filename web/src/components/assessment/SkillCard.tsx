@@ -34,13 +34,6 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
   const isCustom = skill?.is_custom;
   const skillLabel = skill?.skill_label || "Skill baru";
 
-  /**
-   * A custom skill is "being edited" until the assessor explicitly says it is
-   * done. Previously the seven-field custom form was simply always open, with
-   * no Save, no Cancel and no way to tell a half-finished definition from a
-   * finished one — so a list of three custom skills was three unbounded forms
-   * stacked on top of each other.
-   */
   const isNew = isCustom && !skill?.skill_label;
   const [editing, setEditing] = useState<boolean>(Boolean(isNew));
   /** Values as they were when editing began, so Cancel can actually revert. */
@@ -59,8 +52,6 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
   };
 
   const commitEdit = async () => {
-    // Validate just this card's fields, so the messages land next to the field
-    // that is wrong instead of blocking a submit at the bottom of the page.
     const ok = await form.trigger(
       CUSTOM_FIELDS.map((f) => `skills.${index}.${f}` as const),
       { shouldFocus: true }
@@ -72,8 +63,6 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
 
   const cancelEdit = () => {
     if (snapshot === null) {
-      // Never saved once — cancelling a brand-new skill removes the card
-      // rather than leaving an empty definition behind.
       onRemove();
       return;
     }
@@ -95,12 +84,6 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
       className={cn("rounded-lg border bg-white", isDragging && "opacity-50 shadow-lg")}
     >
       <div className="flex items-center gap-2 px-3 py-2.5">
-        {/*
-          The drag handle was an icon-only button with no accessible name: a
-          screen reader announced "button" and nothing more. dnd-kit already
-          supports keyboard dragging via KeyboardSensor — the affordance simply
-          never said so.
-        */}
         <button
           type="button"
           className="cursor-grab touch-none rounded text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"

@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 module Assessments
-  # Compiles the system prompt for a Gemini Live session from an assessment config.
-  # This is pure string interpolation — no LLM call needed.
-  # Template follows PRD 01 Section 2 exactly.
   class SystemPromptCompiler
     def initialize(assessment)
       @assessment = assessment

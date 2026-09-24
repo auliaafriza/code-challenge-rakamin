@@ -9,18 +9,6 @@ interface PollingOptions {
   onTimeout?: () => void;
 }
 
-/**
- * Poll `fn` while `active`, with an end condition.
- *
- * The previous implementation had none. A portfolio stuck in `pending` polled
- * every five seconds forever, under a message reading "This takes about 2
- * minutes" — while the only button that could recover it was rendered solely for
- * the `failed` state. An assessor could watch that spinner for an hour with no
- * way out of the product.
- *
- * It also polled while the tab was hidden, burning quota to update a screen
- * nobody was looking at.
- */
 export function usePolling(
   fn: () => void | Promise<void>,
   intervalMs: number,
@@ -47,9 +35,6 @@ export function usePolling(
 
     const startedAt = Date.now();
     let cancelled = false;
-    // The React state update is asynchronous, but the interval is not: without a
-    // synchronous latch the deadline branch fires again on every subsequent tick
-    // before the effect re-runs, and `onTimeout` is called more than once.
     let expired = false;
 
     const tick = () => {

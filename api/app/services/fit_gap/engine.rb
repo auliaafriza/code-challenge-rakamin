@@ -1,23 +1,6 @@
 # frozen_string_literal: true
 
 module FitGap
-  # N13: Generates a fit/gap report comparing a portfolio against a vacancy.
-  # Uses rule-based comparison for skill levels + Gemini Flash for culture narrative.
-  #
-  # Each comparison is a DECISION RECORD, not a bare number. A row of this report
-  # is read by a hiring manager deciding someone's year, so it has to carry:
-  #
-  #   * the bar          — `required_level`
-  #   * the rating       — `candidate_level`, plus `ai_level` before human review
-  #   * who decided      — `is_override`, `overridden_by_email`, `overridden_at`
-  #   * how sure we are  — `confidence` and the `probe_count` behind it
-  #
-  # The previous payload computed most of this and then dropped it on the floor:
-  # `overridden` was calculated in `effective_portfolio_skills` and never added to
-  # the comparison hash, so the UI could not distinguish the model's guess from an
-  # assessor's professional correction; and the bar was emitted as `expected_level`
-  # while the client read `required_level`, so the Required column rendered blank
-  # on every row of every report.
   class Engine
     def initialize(portfolio:, vacancy:, gemini_client: nil)
       @portfolio = portfolio
@@ -74,14 +57,10 @@ module FitGap
           skill_label:     label,
           skill_id:        vacancy_skill.skill_id,
 
-          # The bar. `expected_level` is retained as a deprecated alias so any
-          # existing consumer keeps working; `required_level` is canonical.
           required_level:  required_level,
           expected_level:  required_level,
 
           candidate_level: candidate_level,
-          # What the model said before any human touched it. Without this, an
-          # override erases the thing it is a correction of.
           ai_level:        portfolio_skill&.dig(:ai_level),
 
           result:          result,
@@ -97,8 +76,6 @@ module FitGap
       end
     end
 
-    # Returns portfolio skills with overrides applied, plus the provenance and
-    # depth-of-evidence needed to explain each rating downstream.
     def effective_portfolio_skills
       @portfolio.portfolio_skills.includes(:assessor_override).map do |skill|
         override = skill.assessor_override
@@ -118,9 +95,6 @@ module FitGap
       end
     end
 
-    # How many times each skill was actually probed during the interview. This is
-    # what `confidence` is derived from, so shipping it lets a reader check the
-    # caveat instead of taking it on faith.
     def probe_counts
       @probe_counts ||= begin
         session = @portfolio.session
@@ -165,8 +139,6 @@ module FitGap
         Rails.logger.error("[N13] Narrative generation failed: #{e.class} #{e.message}")
         {
           culture:  nil,
-          # Marked as a fallback so the UI can say the sentence came from
-          # arithmetic, not from a model that read the interview.
           overall:  "#{FALLBACK_PREFIX}#{generate_fallback_narrative(skill_comparisons)}",
           fallback: true
         }
@@ -182,8 +154,6 @@ module FitGap
         You are writing a fit/gap analysis narrative for a candidate evaluation.
 
         ROLE: #{vacancy.role_title}
-        #{vacancy.culture_dimensions.present? ? "CULTURE EXPECTATIONS:\n#{vacancy.culture_dimensions}\n" : ''}
-        #{vacancy.competency_expectations.present? ? "COMPETENCY EXPECTATIONS:\n#{vacancy.competency_expectations}\n" : ''}
 
         SKILL COMPARISON RESULTS:
         - Matches (#{matches.count}): #{matches.map { |c| "#{c[:skill_label]} (L#{c[:candidate_level]}, confidence #{c[:confidence] || 'unknown'})" }.join(', ')}

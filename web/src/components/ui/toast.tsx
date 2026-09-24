@@ -11,17 +11,6 @@ import {
 import { CheckCircle2, AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/**
- * Confirmation that a write actually landed.
- *
- * Creating an assessment, editing a vacancy, saving an override — none of them
- * said anything when they succeeded, and several said nothing when they failed
- * either. An assessor pressed Save, the button re-enabled, and they were left to
- * infer the outcome from the fact that nothing had visibly broken.
- *
- * Deliberately dependency-free and small: a provider, a hook, and a live region.
- */
-
 export type ToastTone = "success" | "error";
 
 interface Toast {
@@ -82,7 +71,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      {/* Announced to screen readers as it appears, not just drawn on screen. */}
       <div
         role="status"
         aria-live="polite"

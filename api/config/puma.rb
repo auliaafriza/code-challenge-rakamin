@@ -1,36 +1,41 @@
 # frozen_string_literal: true
 
-# Each active interview occupies 1 Puma thread (audio WebSocket + Gemini WS).
-# With 16 threads and 2 workers (32 total), the server handles ~10 concurrent interviews
-# plus REST API headroom.
 max_threads_count = ENV.fetch('RAILS_MAX_THREADS', 16)
 min_threads_count = ENV.fetch('RAILS_MIN_THREADS') { max_threads_count }
 threads min_threads_count, max_threads_count
 
-workers ENV.fetch('WEB_CONCURRENCY', 2)
+rails_env = ENV.fetch('RAILS_ENV', 'development')
 
-worker_timeout 3600 if ENV.fetch('RAILS_ENV', 'development') == 'development'
+# Single mode in development. This app starts an EventMachine reactor at boot,
+# and `preload_app!` starts it in the master process — but threads do not
+# survive fork, so every worker inherits a reactor that is gone while
+# EventMachine still reports it as running. Two workers buy nothing on one
+# machine and cost exactly that bug.
+worker_count = ENV.fetch('WEB_CONCURRENCY') { rails_env == 'development' ? 0 : 2 }.to_i
+workers worker_count
 
-# Keep long-lived WebSocket connections alive between Puma keep-alive checks.
-# Interviews run 30-90 minutes — connections must not time out.
+worker_timeout 3600 if rails_env == 'development'
+
 persistent_timeout ENV.fetch('PUMA_PERSISTENT_TIMEOUT', 300).to_i
 first_data_timeout ENV.fetch('PUMA_FIRST_DATA_TIMEOUT', 30).to_i
 
 port ENV.fetch('PORT', 3001)
 
-environment ENV.fetch('RAILS_ENV', 'development')
+environment rails_env
 
 pidfile ENV.fetch('PIDFILE', 'tmp/pids/server.pid')
 
-preload_app!
+# Preloading only means anything in cluster mode.
+preload_app! if worker_count.positive?
 
 on_worker_boot do
   ActiveRecord::Base.establish_connection if defined?(ActiveRecord)
 
-  # Restart the EventMachine reactor in each forked worker — preload_app! forks
-  # after EM starts in the master, killing the reactor thread in child processes.
-  # Without this, all WebSocket connections silently fail in production workers.
-  unless EventMachine.reactor_running?
+  # `reactor_running?` still answers true in a forked worker even though the
+  # thread that ran it is gone. The thread is the only honest signal.
+  reactor_alive = EventMachine.reactor_running? && EventMachine.reactor_thread&.alive?
+
+  unless reactor_alive
     ready = Queue.new
     Thread.new { EventMachine.run { ready.push(:ok) } }
     ready.pop

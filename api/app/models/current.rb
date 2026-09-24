@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# Extracted verbatim from rakamin-api.
-# Uses RequestStore for thread-safe, per-request globals.
 module Current
   module Ext
     def class_accessor(name)

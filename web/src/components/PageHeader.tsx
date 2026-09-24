@@ -17,18 +17,6 @@ interface PageHeaderProps {
   actions?: ReactNode;
 }
 
-/**
- * One breadcrumb convention for the whole assessor area.
- *
- * The app previously used two: "Vacancies / New Vacancy" on one screen and
- * "Back / New Assessment" on another — mixing a location trail with a verb, so
- * the same control meant different things on adjacent pages. And the back
- * affordance was a bare arrow icon with no text label, which is both a guess for
- * a sighted user and nothing at all for a screen reader.
- *
- * Here the back control is always an arrow *and* the word Back, and the trail
- * that follows always names real locations.
- */
 export default function PageHeader({
   backTo,
   crumbs,

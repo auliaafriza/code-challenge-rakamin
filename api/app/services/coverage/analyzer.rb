@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 module Coverage
-  # N7: Analyzes the last N transcript turns against the current coverage map
-  # using Gemini Flash. Updates coverage states and detects discovered skills.
-  # Runs async — failures are non-critical; interview continues with stale map.
   class Analyzer
     TURNS_CONTEXT = 6
 
@@ -122,19 +119,12 @@ module Coverage
         map = find_map(coverage_maps, update['id'])
         next unless map
 
-        # Skill is already covered — freeze it. Flash keeps seeing old turns
-        # in the sliding window and would keep incrementing probe_count.
         next if map.state == 'covered'
 
         new_state       = update['new_state']
         raw_probe_count = update['new_probe_count'].to_i
         reason          = update['reason']
 
-        # The analyzer runs once per candidate turn with a sliding 6-turn window.
-        # Consecutive runs share 5 of 6 turns, so Flash double-counts overlapping
-        # exchanges and inflates probe_count. Cap the increment at +1 per run:
-        # one exchange = one probe. Apply this before the StateEngine gate check
-        # so state advancement also uses the correct count.
         safe_probe = [[raw_probe_count, map.probe_count + 1].min, map.probe_count].max
 
         # Enforce hard rules via StateEngine

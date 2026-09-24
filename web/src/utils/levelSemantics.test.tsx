@@ -4,18 +4,8 @@ import { parseLevel, parseConfidence, formatLevel } from "@/utils/constants";
 import ConfidenceIndicator from "@/components/portfolio/ConfidenceIndicator";
 import LevelBadge from "@/components/portfolio/LevelBadge";
 
-/**
- * The L1–L5 scale is this product's unit of judgement about a person, and
- * confidence is the caveat attached to it. These tests ask one question of the
- * presentation layer: when the datum is absent or malformed, does the UI say so,
- * or does it quietly assert something about the candidate anyway?
- */
-
 describe("parseLevel — absent data must not become a rating", () => {
   it("returns null rather than L1 when the level is missing", () => {
-    // The old implementation returned 1 for anything unparseable. L1 is
-    // "Foundational" — the most damaging rating on the scale — asserted about a
-    // person who never chose to be assessed and cannot see the result.
     expect(parseLevel("")).toBeNull();
     expect(parseLevel(null)).toBeNull();
     expect(parseLevel(undefined)).toBeNull();
@@ -81,9 +71,6 @@ describe("ConfidenceIndicator — absence is not the same as low confidence", ()
   });
 
   it("normalises the capitalisation the model actually produces", () => {
-    // Verified, not assumed: the original implementation already lower-cased its
-    // input, so capitalised model output was handled correctly all along. The
-    // test stays as a regression guard for behaviour that is genuinely right.
     render(<ConfidenceIndicator confidence="High" />);
     expect(screen.getByText(/tinggi/i)).toBeInTheDocument();
     expect(parseConfidence("  MEDIUM ")).toBe("medium");

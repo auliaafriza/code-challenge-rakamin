@@ -83,8 +83,6 @@ export default function SkillPortfolioCard({
                     <Quote className="mt-1 h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
                     <span className="break-words">
                       <span className="italic">“{quote}”</span>{" "}
-                      {/* A quote a reviewer cannot locate is a claim they cannot check.
-                          This is what turns the model from an oracle into a tool. */}
                       {transcriptBase && turnId !== undefined && (
                         <Link
                           to={`${transcriptBase}#turn-${turnId}`}
