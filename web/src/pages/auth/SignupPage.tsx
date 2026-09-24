@@ -175,11 +175,7 @@ export function AuthAside() {
 
       <div className="max-w-md space-y-4">
         <p className="text-2xl font-semibold leading-snug">
-          Wawancara yang bisa dipertanggungjawabkan, bukan sekadar direkam.
-        </p>
-        <p className="text-sm text-primary-foreground/80 leading-relaxed">
-          Setiap level yang diberikan AI menyimpan jejaknya: siapa yang mengoreksi, kapan, dan
-          dengan alasan apa. Penilaian tetap bisa dibaca ulang enam bulan kemudian.
+         Wawancara berbasis AI untuk perekrutan yang lebih cepat dan adil. AI menilai jawaban kandidat secara objektif, sehingga perekrut bisa fokus pada hal-hal yang lebih penting.
         </p>
       </div>
 
