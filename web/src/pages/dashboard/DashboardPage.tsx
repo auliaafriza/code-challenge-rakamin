@@ -214,8 +214,8 @@ export default function DashboardPage() {
         <SectionCard
           className="lg:col-span-3"
           icon={GitBranch}
-          title="Corong sesi wawancara"
-          description="Dihitung dari status sesi yang benar-benar tersimpan — bukan tahap rekrutmen, karena produk ini belum menyimpannya."
+          title="Daftar sesi wawancara"
+          description="Dihitung dari status sesi yang ada dan diurutkan dari yang terbanyak. Sesi yang sudah selesai siap dinilai."
         >
           {loading ? (
             <div className="space-y-4 px-2 py-2">
@@ -248,7 +248,7 @@ export default function DashboardPage() {
           className="lg:col-span-2"
           icon={Lightbulb}
           title="Perlu perhatian"
-          description="Hal yang rusak tanpa memberi tahu siapa pun, diurutkan dari yang akibatnya ditanggung kandidat."
+          description="Hal yang perlu diperhatikan, diurutkan dari yang paling mendesak. Bisa berupa sesi yang sudah selesai tapi belum dinilai, atau link undangan yang hampir kadaluarsa."
         >
           {loading ? (
             <div className="space-y-3">
@@ -257,7 +257,7 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : attention.length === 0 ? (
-            <EmptyHint>Tidak ada yang mendesak. Semua link undangan masih hidup.</EmptyHint>
+            <EmptyHint>Tidak ada data.</EmptyHint>
           ) : (
             <ul className="space-y-1">
               {attention.map((item) => (
@@ -293,7 +293,7 @@ export default function DashboardPage() {
           className="lg:col-span-3"
           icon={UserRound}
           title="Kandidat terbaru"
-          description="Sesi terakhir dari setiap assessment — bukan seluruh kandidat."
+          description="Sesi terakhir dari setiap assessment."
           action={
             <Link to="/assessments" className="text-xs font-medium text-primary hover:underline">
               Lihat semua
@@ -345,7 +345,7 @@ export default function DashboardPage() {
           className="lg:col-span-2"
           icon={Trophy}
           title="Recruiter paling aktif"
-          description="Diurutkan dari jumlah assessment dan lowongan yang dibuat — ukuran aktivitas, bukan kualitas rekrutmen."
+          description="Diurutkan dari jumlah assessment dan lowongan yang dibuat sampai ukuran aktivitas"
         >
           {loading ? (
             <div className="space-y-3">
