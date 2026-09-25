@@ -5,15 +5,21 @@ import "./index.css";
 import App from "./App";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/ui/toast";
+import { ThemeProvider } from "@/theme/ThemeProvider";
+import { LanguageProvider } from "@/i18n/LanguageProvider";
 
 createRoot(document.getElementById("root")!).render(
     <ErrorBoundary>
-        <JotaiProvider>
-            <ToastProvider>
-                <BrowserRouter>
-                    <App />
-                </BrowserRouter>
-            </ToastProvider>
-        </JotaiProvider>
+        <ThemeProvider>
+            <LanguageProvider>
+                <JotaiProvider>
+                    <ToastProvider>
+                        <BrowserRouter>
+                            <App />
+                        </BrowserRouter>
+                    </ToastProvider>
+                </JotaiProvider>
+            </LanguageProvider>
+        </ThemeProvider>
     </ErrorBoundary>
 );

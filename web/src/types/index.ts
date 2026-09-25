@@ -141,6 +141,15 @@ export interface CandidateInfo {
   role_title: string;
   time_limit_min: number;
   session_status: string;
+  /**
+   * Bahasa yang dipakai AI untuk mewawancarai ("id" | "en").
+   *
+   * Opsional karena endpoint-nya belum mengirimkannya. Begitu dikirim, halaman
+   * kandidat otomatis terbuka dalam bahasa yang sama dengan yang akan diucapkan
+   * AI. Sampai saat itu, halaman mengikuti bahasa browser, dan kandidat selalu
+   * bisa menggantinya sendiri lewat pemilih bahasa di header.
+   */
+  language?: string | null;
 }
 
 export interface PaginationMeta {

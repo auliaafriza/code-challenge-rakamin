@@ -442,7 +442,7 @@ export default function AssessmentInvitePage() {
               Link untuk <span className="font-semibold">{newSession.candidate_name}</span> siap —
               bagikan ke kandidat:
             </p>
-            <div className="flex items-center gap-2 rounded-md border bg-white px-3 py-2">
+            <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-2">
               <span className="flex-1 truncate font-mono text-sm text-muted-foreground">
                 {newSession.invite_url}
               </span>

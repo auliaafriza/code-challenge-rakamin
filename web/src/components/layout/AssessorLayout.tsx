@@ -7,6 +7,7 @@ import { roleLabel } from "@/services/auth";
 import { Button } from "@/components/ui/button";
 import SidebarNav, { type NavItem } from "@/components/layout/Sidebar";
 import { LayoutDashboard, ClipboardList, Briefcase, Users, BarChart3, LogOut, Menu, X } from "lucide-react";
+import ThemeToggle from "@/theme/ThemeToggle";
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -55,6 +56,10 @@ export default function AssessorLayout() {
 
   const userCard = (
     <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted-foreground">Tema</span>
+        <ThemeToggle />
+      </div>
       {tenant.name && (
         <p className="truncate rounded-lg bg-muted px-3 py-1.5 text-[11px] text-muted-foreground">
           Tenant: {tenant.name}

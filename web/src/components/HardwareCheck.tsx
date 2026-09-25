@@ -10,6 +10,8 @@ import {
 } from "@/utils/hardwareUtils";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, CheckCircle, XCircle, Loader2, Circle } from "lucide-react";
+import { useT } from "@/i18n/LanguageProvider";
+import type { Strings } from "@/i18n/strings";
 
 interface HardwareCheckProps {
     onStart?: () => void;
@@ -25,16 +27,17 @@ function StateIcon({ state }: { state: ProctoringState }) {
     return <Circle className="h-4 w-4 text-muted-foreground/40" />;
 }
 
-function stateLabel(state: ProctoringState) {
-    if (state === ProctoringState.LOADING) return "Checking...";
-    if (state === ProctoringState.PASSED) return "Passed";
-    if (state === ProctoringState.ERROR) return "Failed";
-    return "Waiting";
+function stateLabel(state: ProctoringState, t: Strings) {
+    if (state === ProctoringState.LOADING) return t.stateChecking;
+    if (state === ProctoringState.PASSED) return t.statePassed;
+    if (state === ProctoringState.ERROR) return t.stateFailed;
+    return t.stateWaiting;
 }
 
 const REQUIRE_CAMERA = import.meta.env.VITE_REQUIRE_CAMERA === "true";
 
 const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
+    const t = useT();
     const [progress, setProgress] = useState<HardwareCheckingProgress>({
         osAndBrowser: ProctoringState.WAITING,
         internet: ProctoringState.WAITING,
@@ -191,11 +194,11 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
     const thresholds = DEFAULT_THRESHOLDS;
 
     const rows: { key: keyof HardwareCheckingProgress; label: string }[] = [
-        { key: "osAndBrowser", label: "OS & browser" },
-        { key: "internet", label: "Internet" },
-        ...(REQUIRE_CAMERA ? [{ key: "camera" as const, label: "Camera" }] : []),
-        { key: "microphone", label: "Microphone" },
-        { key: "audio", label: "Audio output" },
+        { key: "osAndBrowser", label: t.checkOsBrowser },
+        { key: "internet", label: t.checkInternet },
+        ...(REQUIRE_CAMERA ? [{ key: "camera" as const, label: t.checkCamera }] : []),
+        { key: "microphone", label: t.checkMicrophone },
+        { key: "audio", label: t.checkAudio },
     ];
 
     const hasError = Object.values(progress).some((s) => s === ProctoringState.ERROR);
@@ -210,7 +213,7 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
                         <svg className="w-10 h-10 opacity-30" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                         </svg>
-                        <p className="text-xs">Camera not active</p>
+                        <p className="text-xs">{t.cameraInactive}</p>
                     </div>
                 )}
                 {progress.camera === ProctoringState.PASSED && videoStream && (
@@ -232,7 +235,7 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
                                     progress[key] === ProctoringState.ERROR ? "text-destructive" :
                                         "text-muted-foreground"
                                     }`}>
-                                    {stateLabel(progress[key])}
+                                    {stateLabel(progress[key], t)}
                                 </span>
                             </div>
                         </div>
@@ -269,8 +272,8 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
             <div className="px-4 py-3 border-t flex items-center justify-between gap-3 bg-muted/30">
                 {hasError && (
                     <Button variant="outline" size="sm" onClick={retryAll}>
-                        <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                        Retry
+                        <RefreshCw className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+                        {t.retry}
                     </Button>
                 )}
                 <Button
@@ -279,7 +282,7 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
                     disabled={!allPassed}
                     onClick={onStart}
                 >
-                    Start Interview
+                    {t.startInterview}
                 </Button>
             </div>
         </div>

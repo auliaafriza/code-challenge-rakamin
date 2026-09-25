@@ -81,7 +81,7 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
     <div
       ref={setNodeRef}
       style={style}
-      className={cn("rounded-lg border bg-white", isDragging && "opacity-50 shadow-lg")}
+      className={cn("rounded-lg border bg-card", isDragging && "opacity-50 shadow-lg")}
     >
       <div className="flex items-center gap-2 px-3 py-2.5">
         <button

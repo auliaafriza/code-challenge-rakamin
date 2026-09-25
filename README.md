@@ -200,11 +200,7 @@ Cara membaca angkanya ada di [bagian 4](#4-analisis-memeriksa-mutu-penilaian-ai)
 
 ### 4. Analisis: memeriksa mutu penilaian AI
 
-Ini bagian yang paling sering ditanya saat review, dan paling sulit dijawab
-dengan jujur. Penilaian AI tidak jadi benar karena kalimatnya terdengar yakin.
-
-Pertanyaannya juga bukan "apakah levelnya tepat" — tidak ada ground truth untuk
-itu tanpa pelabelan manual berbulan-bulan. Yang bisa diperiksa sekarang adalah
+Yang diperiksa sekarang adalah
 **apakah cara AI sampai ke level itu bisa dipertahankan**: buktinya nyata,
 keyakinannya berarti sesuatu, dan yang diukur kompetensi, bukan kefasihan.
 

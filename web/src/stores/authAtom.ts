@@ -9,8 +9,19 @@ export interface AuthState {
 const STORAGE_KEY = "auth_token";
 const USER_KEY = "auth_user";
 
+// Tidak ada fallback ke import.meta.env di sini, dan itu disengaja.
+//
+// Vite menuliskan SELURUH objek import.meta.env ke dalam bundle — setiap
+// variabel ber-prefix VITE_ yang ada saat build, dipakai kode ini atau tidak
+// (sebuah dependency membacanya sebagai objek utuh, jadi tidak bisa dihindari
+// dari sisi kode). Satu baris `?? import.meta.env.VITE_DEV_TOKEN` memindahkan
+// JWT dari .env pengembang ke berkas JavaScript yang bisa diunduh siapa pun,
+// tanpa satu pun gejala: aplikasinya bekerja normal.
+//
+// Untuk login cepat saat development, tempel sekali di console browser:
+//   localStorage.setItem("auth_token", "<jwt>")
 export function getStoredToken(): string | null {
-  return localStorage.getItem(STORAGE_KEY) ?? import.meta.env.VITE_DEV_TOKEN ?? null;
+  return localStorage.getItem(STORAGE_KEY);
 }
 
 export function getStoredUser(): AuthUser | null {
